@@ -441,14 +441,18 @@ RTSP_STREAM="rtsp://mic1-ip/stream,rtsp://mic2-ip/stream,rtsp://mic3-ip/stream,r
 
 **Example RTSP Server Setup (Pi Zero with Mic):**
 ```bash
-# On each microphone Pi (requires rtsp-simple-server or similar RTSP server)
-# Option 1: Stream to rtsp-simple-server
+# On each microphone Pi
+# First, install an RTSP server like MediaMTX (formerly rtsp-simple-server)
+# Download from: https://github.com/bluenviron/mediamtx/releases
+# Then start MediaMTX and use ffmpeg to push audio to it:
+
 ffmpeg -f alsa -i hw:0 -acodec aac -ab 192k -ac 2 -f rtsp rtsp://localhost:8554/stream
 
-# Option 2: Use rtsp-simple-server (MediaMTX) to publish the stream
-# Install: https://github.com/bluenviron/mediamtx
-# Then configure ffmpeg to push to it
+# Or use HLS streaming which is simpler:
+# ffmpeg -f alsa -i hw:0 -acodec aac -hls_time 2 -hls_list_size 3 /var/www/html/stream.m3u8
 ```
+
+**Note:** RTSP streaming requires a running RTSP server on each microphone Pi. MediaMTX is recommended as it's lightweight and well-suited for Raspberry Pi.
 
 **Step 2:** Configure main Pi
 
@@ -480,11 +484,12 @@ REC_CARD="combined-source"
 
 3. **Test configuration:**
 ```bash
-# Test with 4 channels (for 2-4 mics) or adjust based on your setup
-arecord -D combined-source -f S16_LE -c4 -r48000 -d 10 test.wav
+# Adjust channel count (-cN) to match your number of microphones:
+# -c2 for 2 mics, -c3 for 3 mics, -c4 for 4 mics
+arecord -D combined-source -f S16_LE -c2 -r48000 -d 10 test.wav
 ```
 
-**Note:** This approach is more complex and may require troubleshooting. The number of channels depends on your actual microphone configuration.
+**Note:** This approach is more complex and may require troubleshooting. The number of channels (-cN) must match your total microphone count.
 
 ### 8.2 Field Deployment Checklist
 
@@ -500,8 +505,11 @@ arecord -D combined-source -f S16_LE -c4 -r48000 -d 10 test.wav
 
 **Software Setup:**
 - [ ] Install RaspiOS Trixie 64-bit Lite
-- [ ] Run installer: `curl -s https://raw.githubusercontent.com/Nachtzuster/BirdNET-Pi/main/newinstaller.sh | bash`
-  - Note: This fork (YvedD/BirdNET-Pi-MigCount) is based on Nachtzuster's work
+- [ ] Run installer from base repository:
+  ```bash
+  curl -s https://raw.githubusercontent.com/Nachtzuster/BirdNET-Pi/main/newinstaller.sh | bash
+  ```
+  **Note:** This fork (YvedD/BirdNET-Pi-MigCount) is for analysis/auditing purposes. For installation, use the base Nachtzuster repository which is actively maintained and has the installer script. This fork documents evaluation findings.
 - [ ] Configure location (latitude/longitude)
 - [ ] Set up RTSP streams or USB mic configuration
 - [ ] Test recording with `arecord -l` and `arecord -D [device] -d 10 test.wav`
