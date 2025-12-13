@@ -1,5 +1,21 @@
 <h1 align="center"><a href="https://github.com/mcguirepr89/BirdNET-Pi/blob/main/LICENSE">Review the license!!</a></h1>
 <h1 align="center">You may not use BirdNET-Pi to develop a commercial product!!!!</h1>
+
+---
+
+## 🔍 Codebase Audit Available
+
+**New:** Comprehensive audit documentation is now available for this fork!
+
+📄 **Quick Start:** See [AUDIT_SUMMARY.md](AUDIT_SUMMARY.md) for executive summary  
+📄 **Full Analysis:** See [AUDIT.md](AUDIT.md) for complete technical audit (English)  
+📄 **Nederlandse Versie:** See [AUDIT_NL.md](AUDIT_NL.md) for Dutch summary
+
+**Question Answered:** *Can this fork be used for field deployment with 2-4 non-phantom-powered microphones?*  
+**Answer:** ✅ **YES** - See audit documents for detailed analysis and recommendations.
+
+---
+
 <h1 align="center">
   BirdNET-Pi
 </h1>
