@@ -220,4 +220,19 @@ Raspberry Pi
 
 ---
 
-**Samenvatting:** GPIO/I2S met Primo 9767P is mogelijk maar zeer complex en niet aangeraden. USB geluidskaart is veel praktischer, betrouwbaarder, en werkt direct met BirdNET-Pi. Kost minder tijd en heeft lager faalrisico.
+## Addendum: KY-037 Module
+
+**Let op:** De KY-037 "hooggevoelige microfoon sensor module" lost deze problemen **NIET** op!
+
+**Waarom niet:**
+- De "digitale uitgang" is GEEN digitale audio
+- Het is alleen een geluidsniveau trigger (aan/uit)
+- Geeft geen audio-informatie (kan geen vogelzang opnemen)
+- Analoge uitgang heeft nog steeds ADC nodig (zelfde probleem)
+- Slechtere audio kwaliteit dan Primo 9767P
+
+**Zie KY037_ANALYSE_NL.md voor volledige analyse.**
+
+---
+
+**Samenvatting:** GPIO/I2S met Primo 9767P is mogelijk maar zeer complex en niet aangeraden. KY-037 lost dit niet op omdat de "digitale uitgang" geen audio is. USB geluidskaart is veel praktischer, betrouwbaarder, en werkt direct met BirdNET-Pi. Kost minder tijd en heeft lager faalrisico.
