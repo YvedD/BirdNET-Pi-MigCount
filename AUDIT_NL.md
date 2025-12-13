@@ -198,7 +198,7 @@ Het systeem werkt met:
 
 **Haalbaarheid:** ✅ **HOOG** - Out-of-the-box ondersteund
 
-**Configuratie:**
+**Configuratie:** (in `/etc/birdnet/birdnet.conf`)
 ```bash
 RTSP_STREAM="rtsp://mic1-ip/stream,rtsp://mic2-ip/stream,rtsp://mic3-ip/stream,rtsp://mic4-ip/stream"
 ```
@@ -260,13 +260,18 @@ RTSP_STREAM="rtsp://mic1-ip/stream,rtsp://mic2-ip/stream,rtsp://mic3-ip/stream,r
 
 **Voorbeeld RTSP Server Setup (Pi Zero met Mic):**
 ```bash
-# Op elke microfoon Pi
-ffmpeg -f alsa -i hw:0 -acodec libmp3lame -ab 192k -ac 2 -f rtsp rtsp://0.0.0.0:8554/stream
+# Op elke microfoon Pi (vereist rtsp-simple-server of vergelijkbare RTSP server)
+# Optie 1: Stream naar rtsp-simple-server
+ffmpeg -f alsa -i hw:0 -acodec aac -ab 192k -ac 2 -f rtsp rtsp://localhost:8554/stream
+
+# Optie 2: Gebruik rtsp-simple-server (MediaMTX) om de stream te publiceren
+# Installeer: https://github.com/bluenviron/mediamtx
 ```
 
 **Stap 2:** Configureer hoofd-Pi
+
+Bewerk `/etc/birdnet/birdnet.conf`:
 ```bash
-# In /etc/birdnet/birdnet.conf
 RTSP_STREAM="rtsp://192.168.1.10:8554/stream,rtsp://192.168.1.11:8554/stream,rtsp://192.168.1.12:8554/stream"
 ```
 
@@ -289,7 +294,8 @@ RTSP_STREAM="rtsp://192.168.1.10:8554/stream,rtsp://192.168.1.11:8554/stream,rts
 
 **Software Setup:**
 - [ ] Installeer RaspiOS Trixie 64-bit Lite
-- [ ] Draai installer: `curl -s https://raw.githubusercontent.com/YvedD/BirdNET-Pi-MigCount/main/newinstaller.sh | bash`
+- [ ] Draai installer: `curl -s https://raw.githubusercontent.com/Nachtzuster/BirdNET-Pi/main/newinstaller.sh | bash`
+  - Let op: Deze fork (YvedD/BirdNET-Pi-MigCount) is gebaseerd op het werk van Nachtzuster
 - [ ] Configureer locatie (breedtegraad/lengtegraad)
 - [ ] Stel RTSP-streams of USB-micconfiguratie in
 - [ ] Test opname met `arecord -l` en `arecord -D [apparaat] -d 10 test.wav`

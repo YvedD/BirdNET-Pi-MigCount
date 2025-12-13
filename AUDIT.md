@@ -379,7 +379,7 @@ soundfile           # Audio I/O
 
 **Feasibility:** ✅ **HIGH** - Supported out-of-the-box
 
-**Configuration:**
+**Configuration:** (in `/etc/birdnet/birdnet.conf`)
 ```bash
 RTSP_STREAM="rtsp://mic1-ip/stream,rtsp://mic2-ip/stream,rtsp://mic3-ip/stream,rtsp://mic4-ip/stream"
 ```
@@ -441,13 +441,19 @@ RTSP_STREAM="rtsp://mic1-ip/stream,rtsp://mic2-ip/stream,rtsp://mic3-ip/stream,r
 
 **Example RTSP Server Setup (Pi Zero with Mic):**
 ```bash
-# On each microphone Pi
-ffmpeg -f alsa -i hw:0 -acodec libmp3lame -ab 192k -ac 2 -f rtsp rtsp://0.0.0.0:8554/stream
+# On each microphone Pi (requires rtsp-simple-server or similar RTSP server)
+# Option 1: Stream to rtsp-simple-server
+ffmpeg -f alsa -i hw:0 -acodec aac -ab 192k -ac 2 -f rtsp rtsp://localhost:8554/stream
+
+# Option 2: Use rtsp-simple-server (MediaMTX) to publish the stream
+# Install: https://github.com/bluenviron/mediamtx
+# Then configure ffmpeg to push to it
 ```
 
 **Step 2:** Configure main Pi
+
+Edit `/etc/birdnet/birdnet.conf`:
 ```bash
-# In /etc/birdnet/birdnet.conf
 RTSP_STREAM="rtsp://192.168.1.10:8554/stream,rtsp://192.168.1.11:8554/stream,rtsp://192.168.1.12:8554/stream"
 ```
 
@@ -474,10 +480,11 @@ REC_CARD="combined-source"
 
 3. **Test configuration:**
 ```bash
-arecord -D combined-source -f S16_LE -c8 -r48000 -d 10 test.wav
+# Test with 4 channels (for 2-4 mics) or adjust based on your setup
+arecord -D combined-source -f S16_LE -c4 -r48000 -d 10 test.wav
 ```
 
-**Note:** This approach is more complex and may require troubleshooting.
+**Note:** This approach is more complex and may require troubleshooting. The number of channels depends on your actual microphone configuration.
 
 ### 8.2 Field Deployment Checklist
 
@@ -493,7 +500,8 @@ arecord -D combined-source -f S16_LE -c8 -r48000 -d 10 test.wav
 
 **Software Setup:**
 - [ ] Install RaspiOS Trixie 64-bit Lite
-- [ ] Run installer: `curl -s https://raw.githubusercontent.com/YvedD/BirdNET-Pi-MigCount/main/newinstaller.sh | bash`
+- [ ] Run installer: `curl -s https://raw.githubusercontent.com/Nachtzuster/BirdNET-Pi/main/newinstaller.sh | bash`
+  - Note: This fork (YvedD/BirdNET-Pi-MigCount) is based on Nachtzuster's work
 - [ ] Configure location (latitude/longitude)
 - [ ] Set up RTSP streams or USB mic configuration
 - [ ] Test recording with `arecord -l` and `arecord -D [device] -d 10 test.wav`
@@ -707,7 +715,8 @@ SELECT * FROM detections LIMIT 10;
 **Official Documentation:**
 - BirdNET-Pi Wiki: https://github.com/mcguirepr89/BirdNET-Pi/wiki
 - Original BirdNET: https://github.com/kahst/BirdNET-Analyzer
-- This Fork: https://github.com/Nachtzuster/BirdNET-Pi
+- Nachtzuster Fork (base): https://github.com/Nachtzuster/BirdNET-Pi
+- This Repository: https://github.com/YvedD/BirdNET-Pi-MigCount
 
 **Community:**
 - GitHub Discussions: https://github.com/mcguirepr89/BirdNET-Pi/discussions
