@@ -453,28 +453,44 @@
     currentDetections = currentDetections.filter(det => det.y > -CONFIG.LABEL_OFFSCREEN_THRESHOLD);
   }
 
-  /**
-   * Draw new FFT row at the bottom of the canvas
-   */
-  function drawFFTRow() {
-    const dataLength = frequencyData.length;
-    const barWidth = canvas.width / dataLength;
-    const y = canvas.height - 1; // Bottom row
-    
-    // Get current color scheme
-    const scheme = COLOR_SCHEMES[CONFIG.COLOR_SCHEME] || COLOR_SCHEMES.purple;
-    
-    for (let i = 0; i < dataLength; i++) {
-      const value = frequencyData[i];
-      const normalizedValue = value / 255;
-      
-      // Get color from current scheme
-      ctx.fillStyle = scheme.getColor(normalizedValue);
-      
-      const x = i * barWidth;
-      ctx.fillRect(x, y, Math.ceil(barWidth), 1);
+/**
+ * Draw new FFT row at the bottom of the canvas
+ * Frequency-limited for bird song syllables (1–11 kHz)
+ */
+function drawFFTRow() {
+  const sampleRate = audioContext.sampleRate;
+  const nyquist = sampleRate / 2;
+  const binCount = frequencyData.length;
+  const y = canvas.height - 1; // Bottom row
+
+  // Huidig kleurenschema
+  const scheme = COLOR_SCHEMES[CONFIG.COLOR_SCHEME] || COLOR_SCHEMES.purple;
+
+  // Verzamel enkel de bins in het gewenste frequentiebereik
+  const visibleBins = [];
+
+  for (let i = 0; i < binCount; i++) {
+    const freq = (i / binCount) * nyquist;
+    if (freq >= MIN_FREQ && freq <= MAX_FREQ) {
+      visibleBins.push(frequencyData[i]);
     }
   }
+
+  if (visibleBins.length === 0) return;
+
+  // Herverdeel zichtbare bins over volledige canvas-breedte
+  const barWidth = canvas.width / visibleBins.length;
+
+  for (let i = 0; i < visibleBins.length; i++) {
+    const value = visibleBins[i];
+    const normalizedValue = value / 255;
+
+    ctx.fillStyle = scheme.getColor(normalizedValue);
+
+    const x = i * barWidth;
+    ctx.fillRect(x, y, Math.ceil(barWidth), 1);
+  }
+}
 
   // =================== Detection Labels ===================
 
