@@ -447,16 +447,19 @@
     currentDetections = currentDetections.filter(det => det.y > -CONFIG.LABEL_OFFSCREEN_THRESHOLD);
   }
 
+  const MIN_DRAW_FREQ = 1000;    // 1 kHz
+  const MAX_DRAW_FREQ = 11000;   // 11 kHz
+  const LOG_MIN_DRAW_FREQ = Math.log(MIN_DRAW_FREQ);
+  const LOG_MAX_DRAW_FREQ = Math.log(MAX_DRAW_FREQ);
+  const LOG_RANGE_INV = 1 / (LOG_MAX_DRAW_FREQ - LOG_MIN_DRAW_FREQ);
+  const clampX = (value, min, max) => Math.min(max, Math.max(min, value));
+
   /**
    * Draw new FFT row at the bottom of the canvas
    * Frequency-limited for bird song syllables (1–11 kHz)
    * Optimized for FFT = 512 and Raspberry Pi 4B
    */
   function drawFFTRow() {
-    // --- Frequentie-instellingen ---
-    const MIN_FREQ = 1000;    // 1 kHz
-    const MAX_FREQ = 11000;   // 11 kHz
-
     const sampleRate = audioContext.sampleRate;
     const nyquist = sampleRate / 2;
     const binCount = frequencyData.length;
@@ -465,28 +468,40 @@
     if (!frequencyData || binCount === 0) return;
 
     // Bepaal bin-range voor 1–11 kHz
-    const minBin = Math.floor((MIN_FREQ / nyquist) * binCount);
-    const maxBin = Math.ceil((MAX_FREQ / nyquist) * binCount);
+    const minBin = Math.max(0, Math.floor((MIN_DRAW_FREQ / nyquist) * binCount));
+    const maxBin = Math.ceil((MAX_DRAW_FREQ / nyquist) * binCount);
 
     if (maxBin <= minBin) return;
 
-    const visibleBinCount = maxBin - minBin;
-    const barWidth = canvas.width / visibleBinCount;
+    const widthScale = canvas.width;
     const y = canvas.height - 1; // onderste pixelrij
 
     // Huidig kleurenschema
     const scheme =
       COLOR_SCHEMES[CONFIG.COLOR_SCHEME] || COLOR_SCHEMES.purple;
 
+    const firstFreq = (minBin * nyquist) / binCount;
+    // Floor rounding can place the first bin slightly below MIN_FREQ; clamp to anchor the scale.
+    const firstClamped = Math.min(MAX_DRAW_FREQ, Math.max(MIN_DRAW_FREQ, firstFreq));
+    let currentX = (Math.log(firstClamped) - LOG_MIN_DRAW_FREQ) * LOG_RANGE_INV * widthScale;
+
     // --- Teken FFT-rij ---
+    // Compute positions inline to avoid per-frame allocations while keeping log spacing.
     for (let i = minBin; i < maxBin; i++) {
       const value = frequencyData[i];
       const normalizedValue = value / 255;
 
       ctx.fillStyle = scheme.getColor(normalizedValue);
 
-      const x = (i - minBin) * barWidth;
-      ctx.fillRect(x, y, Math.ceil(barWidth), 1);
+      const nextFreq = ((i + 1) * nyquist) / binCount;
+      const clampedNext = Math.min(MAX_DRAW_FREQ, Math.max(MIN_DRAW_FREQ, nextFreq));
+      const logNext = (Math.log(clampedNext) - LOG_MIN_DRAW_FREQ) * LOG_RANGE_INV;
+      const nextX = logNext * widthScale;
+
+      const startX = clampX(Math.round(currentX), 0, canvas.width - 1);
+      const endX = clampX(Math.max(startX + 1, Math.round(nextX)), 0, canvas.width);
+      ctx.fillRect(startX, y, endX - startX, 1);
+      currentX = nextX;
     }
   }
 
