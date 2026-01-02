@@ -477,17 +477,17 @@
     const scheme =
       COLOR_SCHEMES[CONFIG.COLOR_SCHEME] || COLOR_SCHEMES.purple;
 
-    const safeMinFreq = Math.max(MIN_FREQ, 1e-6);
-    const safeMaxFreq = Math.max(MAX_FREQ, safeMinFreq);
-    const logMin = Math.log(safeMinFreq);
-    const logMax = Math.log(safeMaxFreq);
+    const logMin = Math.log(MIN_FREQ);
+    const logMax = Math.log(MAX_FREQ);
     const logRangeInv = 1 / (logMax - logMin);
 
     const firstFreq = (minBin * nyquist) / binCount;
-    const firstClamped = Math.min(safeMaxFreq, Math.max(safeMinFreq, firstFreq));
+    // Floor rounding can place the first bin slightly below MIN_FREQ; clamp to anchor the scale.
+    const firstClamped = Math.min(MAX_FREQ, Math.max(MIN_FREQ, firstFreq));
     let currentX = (Math.log(firstClamped) - logMin) * logRangeInv * widthScale;
 
     // --- Teken FFT-rij ---
+    // Compute positions inline to avoid per-frame allocations while keeping log spacing.
     for (let i = minBin; i < maxBin; i++) {
       const value = frequencyData[i];
       const normalizedValue = value / 255;
@@ -495,7 +495,7 @@
       ctx.fillStyle = scheme.getColor(normalizedValue);
 
       const nextFreq = ((i + 1) * nyquist) / binCount;
-      const clampedNext = Math.min(safeMaxFreq, Math.max(safeMinFreq, nextFreq));
+      const clampedNext = Math.min(MAX_FREQ, Math.max(MIN_FREQ, nextFreq));
       const logNext = (Math.log(clampedNext) - logMin) * logRangeInv;
       const nextX = logNext * widthScale;
 
