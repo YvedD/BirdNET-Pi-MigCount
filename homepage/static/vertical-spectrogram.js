@@ -481,17 +481,16 @@
     const logMax = Math.log(MAX_FREQ);
     const logRangeInv = 1 / (logMax - logMin);
 
+    const firstFreq = (minBin * nyquist) / binCount;
+    const firstClamped = Math.min(MAX_FREQ, Math.max(MIN_FREQ, firstFreq));
+    let currentX = (Math.log(firstClamped) - logMin) * logRangeInv * widthMinus1;
+
     // --- Teken FFT-rij ---
     for (let i = minBin; i < maxBin; i++) {
       const value = frequencyData[i];
       const normalizedValue = value / 255;
 
       ctx.fillStyle = scheme.getColor(normalizedValue);
-
-      const freq = (i * nyquist) / binCount;
-      const clampedFreq = Math.min(MAX_FREQ, Math.max(MIN_FREQ, freq));
-      const logNorm = (Math.log(clampedFreq) - logMin) * logRangeInv;
-      const x = logNorm * widthMinus1;
 
       let nextX;
       if (i === maxBin - 1) {
@@ -503,8 +502,9 @@
         nextX = logNext * widthMinus1;
       }
 
-      const barWidth = Math.max(1, Math.ceil(nextX - x));
-      ctx.fillRect(x, y, barWidth, 1);
+      const barWidth = Math.max(1, Math.ceil(nextX - currentX));
+      ctx.fillRect(currentX, y, barWidth, 1);
+      currentX = nextX;
     }
   }
 
