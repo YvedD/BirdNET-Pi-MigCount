@@ -465,25 +465,27 @@
     if (!frequencyData || binCount === 0) return;
 
     // Bepaal bin-range voor 1–11 kHz
-    const minBin = Math.max(0, Math.ceil((MIN_FREQ / nyquist) * binCount));
+    const minBin = Math.max(0, Math.floor((MIN_FREQ / nyquist) * binCount));
     const maxBin = Math.ceil((MAX_FREQ / nyquist) * binCount);
 
     if (maxBin <= minBin) return;
 
-    const widthMinus1 = canvas.width - 1;
+    const widthScale = canvas.width;
     const y = canvas.height - 1; // onderste pixelrij
 
     // Huidig kleurenschema
     const scheme =
       COLOR_SCHEMES[CONFIG.COLOR_SCHEME] || COLOR_SCHEMES.purple;
 
-    const logMin = Math.log(MIN_FREQ);
-    const logMax = Math.log(MAX_FREQ);
+    const safeMinFreq = Math.max(MIN_FREQ, 1e-6);
+    const safeMaxFreq = Math.max(MAX_FREQ, safeMinFreq);
+    const logMin = Math.log(safeMinFreq);
+    const logMax = Math.log(safeMaxFreq);
     const logRangeInv = 1 / (logMax - logMin);
 
     const firstFreq = (minBin * nyquist) / binCount;
-    const firstClamped = Math.min(MAX_FREQ, Math.max(MIN_FREQ, firstFreq));
-    let currentX = (Math.log(firstClamped) - logMin) * logRangeInv * widthMinus1;
+    const firstClamped = Math.min(safeMaxFreq, Math.max(safeMinFreq, firstFreq));
+    let currentX = (Math.log(firstClamped) - logMin) * logRangeInv * widthScale;
 
     // --- Teken FFT-rij ---
     for (let i = minBin; i < maxBin; i++) {
@@ -493,14 +495,13 @@
       ctx.fillStyle = scheme.getColor(normalizedValue);
 
       const nextFreq = ((i + 1) * nyquist) / binCount;
-      const clampedNext = Math.min(MAX_FREQ, Math.max(MIN_FREQ, nextFreq));
+      const clampedNext = Math.min(safeMaxFreq, Math.max(safeMinFreq, nextFreq));
       const logNext = (Math.log(clampedNext) - logMin) * logRangeInv;
-      const nextX = logNext * widthMinus1;
+      const nextX = logNext * widthScale;
 
-      const startX = Math.round(currentX);
-      const endX = i === maxBin - 1 ? canvas.width : Math.round(nextX);
-      const barWidth = Math.max(1, endX - startX);
-      ctx.fillRect(startX, y, barWidth, 1);
+      const startX = Math.min(canvas.width - 1, Math.max(0, Math.round(currentX)));
+      const endX = Math.min(canvas.width, Math.max(startX + 1, Math.round(nextX)));
+      ctx.fillRect(startX, y, endX - startX, 1);
       currentX = nextX;
     }
   }
