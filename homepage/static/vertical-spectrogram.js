@@ -452,6 +452,7 @@
   const LOG_MIN_DRAW_FREQ = Math.log(MIN_DRAW_FREQ);
   const LOG_MAX_DRAW_FREQ = Math.log(MAX_DRAW_FREQ);
   const LOG_RANGE_INV = 1 / (LOG_MAX_DRAW_FREQ - LOG_MIN_DRAW_FREQ);
+  const clampX = (value, max) => Math.min(max, Math.max(0, value));
 
   /**
    * Draw new FFT row at the bottom of the canvas
@@ -483,18 +484,10 @@
     const scheme =
       COLOR_SCHEMES[CONFIG.COLOR_SCHEME] || COLOR_SCHEMES.purple;
 
-    if (MIN_FREQ <= 0 || MAX_FREQ <= MIN_FREQ) return;
-
-    const logMin = LOG_MIN_DRAW_FREQ;
-    const logMax = LOG_MAX_DRAW_FREQ;
-    const logRangeInv = LOG_RANGE_INV;
-
     const firstFreq = (minBin * nyquist) / binCount;
     // Floor rounding can place the first bin slightly below MIN_FREQ; clamp to anchor the scale.
     const firstClamped = Math.min(MAX_FREQ, Math.max(MIN_FREQ, firstFreq));
-    let currentX = (Math.log(firstClamped) - logMin) * logRangeInv * widthScale;
-
-    const clampX = (value, max) => Math.min(max, Math.max(0, value));
+    let currentX = (Math.log(firstClamped) - LOG_MIN_DRAW_FREQ) * LOG_RANGE_INV * widthScale;
 
     // --- Teken FFT-rij ---
     // Compute positions inline to avoid per-frame allocations while keeping log spacing.
@@ -506,7 +499,7 @@
 
       const nextFreq = ((i + 1) * nyquist) / binCount;
       const clampedNext = Math.min(MAX_FREQ, Math.max(MIN_FREQ, nextFreq));
-      const logNext = (Math.log(clampedNext) - logMin) * logRangeInv;
+      const logNext = (Math.log(clampedNext) - LOG_MIN_DRAW_FREQ) * LOG_RANGE_INV;
       const nextX = logNext * widthScale;
 
       const startX = clampX(Math.round(currentX), canvas.width - 1);
