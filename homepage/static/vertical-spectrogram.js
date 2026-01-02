@@ -21,7 +21,7 @@
     // Default: 100ms (suitable for Raspberry Pi 3)
     // For RPi 5 or powerful devices: 50ms
     // For smartphones/tablets: 100-150ms
-    REDRAW_INTERVAL_MS: 30,
+    REDRAW_INTERVAL_MS: 33,
     
     // Detection label configuration
     DETECTION_CHECK_INTERVAL_MS: 1000,
@@ -77,9 +77,6 @@
     GRID_LABEL_OFFSET_X: 3, // Horizontal offset for grid labels
     GRID_LABEL_OFFSET_Y: 8, // Vertical offset for grid labels
   };
-  // --- Frequentiebeperkingen voor syllable-visualisatie ---
-  const MIN_FREQ = 1000;    // 1 kHz
-  const MAX_FREQ = 11000;   // 11 kHz
   // =================== Color Schemes ===================
   const COLOR_SCHEMES = {
     purple: {
@@ -406,14 +403,11 @@
   // Converteer lineaire magnitude → pseudo-dB in-place
   // Dit verhoogt zichtbaarheid van zachte syllables
   for (let i = 0; i < frequencyData.length; i++) {
-    const v = frequencyData[i] / 255.0;          // 0.0 – 1.0
-    let db = 20 * Math.log10(v + 1e-6);           // log schaal
-    db = Math.max(db, -80);                       // noise floor
-    frequencyData[i] = Math.floor(
-      ((db + 80) / 80) * 255                      // normaliseer naar 0–255
-    );
+    const v = frequencyData[i] / 255.0;
+    let db = 20 * Math.log10(v + 1e-6);   // vermijd log(0)
+    db = Math.max(db, -80);               // noise floor
+    frequencyData[i] = Math.round(((db + 80) / 80) * 255);
   }
-
   // Scroll bestaande inhoud exact 1 pixel omhoog
   scrollContentUp();
 
@@ -453,44 +447,48 @@
     currentDetections = currentDetections.filter(det => det.y > -CONFIG.LABEL_OFFSCREEN_THRESHOLD);
   }
 
-/**
- * Draw new FFT row at the bottom of the canvas
- * Frequency-limited for bird song syllables (1–11 kHz)
- */
-function drawFFTRow() {
-  const sampleRate = audioContext.sampleRate;
-  const nyquist = sampleRate / 2;
-  const binCount = frequencyData.length;
-  const y = canvas.height - 1; // Bottom row
+  /**
+   * Draw new FFT row at the bottom of the canvas
+   * Frequency-limited for bird song syllables (1–11 kHz)
+   * Optimized for FFT = 512 and Raspberry Pi 4B
+   */
+  function drawFFTRow() {
+    // --- Frequentie-instellingen ---
+    const MIN_FREQ = 1000;    // 1 kHz
+    const MAX_FREQ = 11000;   // 11 kHz
 
-  // Huidig kleurenschema
-  const scheme = COLOR_SCHEMES[CONFIG.COLOR_SCHEME] || COLOR_SCHEMES.purple;
+    const sampleRate = audioContext.sampleRate;
+    const nyquist = sampleRate / 2;
+    const binCount = frequencyData.length;
 
-  // Verzamel enkel de bins in het gewenste frequentiebereik
-  const visibleBins = [];
+    // Veiligheidscheck
+    if (!frequencyData || binCount === 0) return;
 
-  for (let i = 0; i < binCount; i++) {
-    const freq = (i / binCount) * nyquist;
-    if (freq >= MIN_FREQ && freq <= MAX_FREQ) {
-      visibleBins.push(frequencyData[i]);
+    // Bepaal bin-range voor 1–11 kHz
+    const minBin = Math.floor((MIN_FREQ / nyquist) * binCount);
+    const maxBin = Math.ceil((MAX_FREQ / nyquist) * binCount);
+
+    if (maxBin <= minBin) return;
+
+    const visibleBinCount = maxBin - minBin;
+    const barWidth = canvas.width / visibleBinCount;
+    const y = canvas.height - 1; // onderste pixelrij
+
+    // Huidig kleurenschema
+    const scheme =
+      COLOR_SCHEMES[CONFIG.COLOR_SCHEME] || COLOR_SCHEMES.purple;
+
+    // --- Teken FFT-rij ---
+    for (let i = minBin; i < maxBin; i++) {
+      const value = frequencyData[i];
+      const normalizedValue = value / 255;
+
+      ctx.fillStyle = scheme.getColor(normalizedValue);
+
+      const x = (i - minBin) * barWidth;
+      ctx.fillRect(x, y, Math.ceil(barWidth), 1);
     }
   }
-
-  if (visibleBins.length === 0) return;
-
-  // Herverdeel zichtbare bins over volledige canvas-breedte
-  const barWidth = canvas.width / visibleBins.length;
-
-  for (let i = 0; i < visibleBins.length; i++) {
-    const value = visibleBins[i];
-    const normalizedValue = value / 255;
-
-    ctx.fillStyle = scheme.getColor(normalizedValue);
-
-    const x = i * barWidth;
-    ctx.fillRect(x, y, Math.ceil(barWidth), 1);
-  }
-}
 
   // =================== Detection Labels ===================
 
