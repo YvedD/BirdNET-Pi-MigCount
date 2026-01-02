@@ -465,7 +465,7 @@
     if (!frequencyData || binCount === 0) return;
 
     // Bepaal bin-range voor 1–11 kHz
-    const minBin = Math.floor((MIN_FREQ / nyquist) * binCount);
+    const minBin = Math.max(0, Math.ceil((MIN_FREQ / nyquist) * binCount));
     const maxBin = Math.ceil((MAX_FREQ / nyquist) * binCount);
 
     if (maxBin <= minBin) return;
@@ -492,18 +492,15 @@
 
       ctx.fillStyle = scheme.getColor(normalizedValue);
 
-      let nextX;
-      if (i === maxBin - 1) {
-        nextX = canvas.width;
-      } else {
-        const nextFreq = ((i + 1) * nyquist) / binCount;
-        const clampedNext = Math.min(MAX_FREQ, Math.max(MIN_FREQ, nextFreq));
-        const logNext = (Math.log(clampedNext) - logMin) * logRangeInv;
-        nextX = logNext * widthMinus1;
-      }
+      const nextFreq = ((i + 1) * nyquist) / binCount;
+      const clampedNext = Math.min(MAX_FREQ, Math.max(MIN_FREQ, nextFreq));
+      const logNext = (Math.log(clampedNext) - logMin) * logRangeInv;
+      const nextX = logNext * widthMinus1;
 
-      const barWidth = Math.max(1, Math.ceil(nextX - currentX));
-      ctx.fillRect(currentX, y, barWidth, 1);
+      const startX = Math.round(currentX);
+      const endX = i === maxBin - 1 ? canvas.width : Math.round(nextX);
+      const barWidth = Math.max(1, endX - startX);
+      ctx.fillRect(startX, y, barWidth, 1);
       currentX = nextX;
     }
   }
