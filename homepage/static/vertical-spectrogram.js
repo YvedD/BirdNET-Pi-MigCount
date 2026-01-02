@@ -452,7 +452,7 @@
   const LOG_MIN_DRAW_FREQ = Math.log(MIN_DRAW_FREQ);
   const LOG_MAX_DRAW_FREQ = Math.log(MAX_DRAW_FREQ);
   const LOG_RANGE_INV = 1 / (LOG_MAX_DRAW_FREQ - LOG_MIN_DRAW_FREQ);
-  const clampX = (value, max) => Math.min(max, Math.max(0, value));
+  const clampX = (value, min, max) => Math.min(max, Math.max(min, value));
 
   /**
    * Draw new FFT row at the bottom of the canvas
@@ -460,10 +460,6 @@
    * Optimized for FFT = 512 and Raspberry Pi 4B
    */
   function drawFFTRow() {
-    // --- Frequentie-instellingen ---
-    const MIN_FREQ = MIN_DRAW_FREQ;
-    const MAX_FREQ = MAX_DRAW_FREQ;
-
     const sampleRate = audioContext.sampleRate;
     const nyquist = sampleRate / 2;
     const binCount = frequencyData.length;
@@ -472,8 +468,8 @@
     if (!frequencyData || binCount === 0) return;
 
     // Bepaal bin-range voor 1–11 kHz
-    const minBin = Math.max(0, Math.floor((MIN_FREQ / nyquist) * binCount));
-    const maxBin = Math.ceil((MAX_FREQ / nyquist) * binCount);
+    const minBin = Math.max(0, Math.floor((MIN_DRAW_FREQ / nyquist) * binCount));
+    const maxBin = Math.ceil((MAX_DRAW_FREQ / nyquist) * binCount);
 
     if (maxBin <= minBin) return;
 
@@ -486,7 +482,7 @@
 
     const firstFreq = (minBin * nyquist) / binCount;
     // Floor rounding can place the first bin slightly below MIN_FREQ; clamp to anchor the scale.
-    const firstClamped = Math.min(MAX_FREQ, Math.max(MIN_FREQ, firstFreq));
+    const firstClamped = Math.min(MAX_DRAW_FREQ, Math.max(MIN_DRAW_FREQ, firstFreq));
     let currentX = (Math.log(firstClamped) - LOG_MIN_DRAW_FREQ) * LOG_RANGE_INV * widthScale;
 
     // --- Teken FFT-rij ---
@@ -498,12 +494,12 @@
       ctx.fillStyle = scheme.getColor(normalizedValue);
 
       const nextFreq = ((i + 1) * nyquist) / binCount;
-      const clampedNext = Math.min(MAX_FREQ, Math.max(MIN_FREQ, nextFreq));
+      const clampedNext = Math.min(MAX_DRAW_FREQ, Math.max(MIN_DRAW_FREQ, nextFreq));
       const logNext = (Math.log(clampedNext) - LOG_MIN_DRAW_FREQ) * LOG_RANGE_INV;
       const nextX = logNext * widthScale;
 
-      const startX = clampX(Math.round(currentX), canvas.width - 1);
-      const endX = clampX(Math.max(startX + 1, Math.round(nextX)), canvas.width);
+      const startX = clampX(Math.round(currentX), 0, canvas.width - 1);
+      const endX = clampX(Math.max(startX + 1, Math.round(nextX)), 0, canvas.width);
       ctx.fillRect(startX, y, endX - startX, 1);
       currentX = nextX;
     }
