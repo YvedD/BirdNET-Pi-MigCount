@@ -470,13 +470,16 @@
 
     if (maxBin <= minBin) return;
 
-    const visibleBinCount = maxBin - minBin;
-    const barWidth = canvas.width / visibleBinCount;
+    const widthMinus1 = canvas.width - 1;
     const y = canvas.height - 1; // onderste pixelrij
 
     // Huidig kleurenschema
     const scheme =
       COLOR_SCHEMES[CONFIG.COLOR_SCHEME] || COLOR_SCHEMES.purple;
+
+    const logMin = Math.log(MIN_FREQ);
+    const logMax = Math.log(MAX_FREQ);
+    const logRangeInv = 1 / (logMax - logMin);
 
     // --- Teken FFT-rij ---
     for (let i = minBin; i < maxBin; i++) {
@@ -485,8 +488,23 @@
 
       ctx.fillStyle = scheme.getColor(normalizedValue);
 
-      const x = (i - minBin) * barWidth;
-      ctx.fillRect(x, y, Math.ceil(barWidth), 1);
+      const freq = (i * nyquist) / binCount;
+      const clampedFreq = Math.min(MAX_FREQ, Math.max(MIN_FREQ, freq));
+      const logNorm = (Math.log(clampedFreq) - logMin) * logRangeInv;
+      const x = logNorm * widthMinus1;
+
+      let nextX;
+      if (i === maxBin - 1) {
+        nextX = canvas.width;
+      } else {
+        const nextFreq = ((i + 1) * nyquist) / binCount;
+        const clampedNext = Math.min(MAX_FREQ, Math.max(MIN_FREQ, nextFreq));
+        const logNext = (Math.log(clampedNext) - logMin) * logRangeInv;
+        nextX = logNext * widthMinus1;
+      }
+
+      const barWidth = Math.max(1, Math.ceil(nextX - x));
+      ctx.fillRect(x, y, barWidth, 1);
     }
   }
 
