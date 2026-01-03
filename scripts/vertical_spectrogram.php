@@ -16,7 +16,10 @@ if(!empty($config['FREQSHIFT_RECONNECT_DELAY']) && is_numeric($config['FREQSHIFT
 define('DEFAULT_FREQSHIFT_RECONNECT_DELAY', 4000);
 define('RTSP_STREAM_RECONNECT_DELAY', 10000);
 
-$safe_home = realpath($home) ?: $home;
+$safe_home = realpath($home);
+if ($safe_home === false || strpos($safe_home, '..') !== false) {
+  $safe_home = $home;
+}
 
 $advanced_defaults = [
   'FFT_SIZE' => 512,
@@ -66,7 +69,14 @@ if (isset($_GET['advanced_settings'])) {
       die();
     }
 
-    $input = json_decode(file_get_contents('php://input', false, null, 0, 4096), true);
+    $raw_input = file_get_contents('php://input', false, null, 0, 5000);
+    if ($raw_input !== false && strlen($raw_input) > 4096) {
+      http_response_code(413);
+      echo json_encode(['error' => 'Payload too large']);
+      die();
+    }
+
+    $input = json_decode($raw_input, true);
     if (json_last_error() !== JSON_ERROR_NONE) {
       http_response_code(400);
       echo json_encode(['error' => 'Malformed JSON']);
