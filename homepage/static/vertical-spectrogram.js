@@ -130,8 +130,8 @@
     }
   };
 
-  const MIN_DRAW_FREQ = 1000;    // 1 kHz
-  const MAX_DRAW_FREQ = 11000;   // 11 kHz
+  const MIN_DRAW_FREQ = CONFIG.MIN_DRAW_FREQ || 1000;    // 1 kHz
+  const MAX_DRAW_FREQ = CONFIG.MAX_DRAW_FREQ || 11000;   // 11 kHz
   let logMinDrawFreq = Math.log(MIN_DRAW_FREQ);
   let logMaxDrawFreq = Math.log(MAX_DRAW_FREQ);
   let logRangeInv = 1 / (logMaxDrawFreq - logMinDrawFreq);
@@ -428,7 +428,7 @@
   // Converteer lineaire magnitude → pseudo-dB in-place
   // Dit verhoogt zichtbaarheid van zachte syllables
   const floor = currentDbFloor;
-  const range = dbRange;
+  const range = dbRange || 1;
   for (let i = 0; i < frequencyData.length; i++) {
     const v = frequencyData[i] / 255.0;
     let db = 20 * Math.log10(v + 1e-6);   // vermijd log(0)
@@ -947,14 +947,14 @@
     Object.assign(CONFIG, newConfig);
     
     if (fftSizeChanged && analyser && Number.isInteger(CONFIG.FFT_SIZE)) {
-      const validFftSizes = [32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384];
+      const validFftSizes = [512, 1024, 2048];
       if (validFftSizes.includes(CONFIG.FFT_SIZE)) {
         analyser.fftSize = CONFIG.FFT_SIZE;
         frequencyData = new Uint8Array(analyser.frequencyBinCount);
         initializeImageData();
         drawFrequencyLabels();
       } else {
-        console.warn('Ignored invalid FFT_SIZE (must be power of two):', CONFIG.FFT_SIZE);
+        console.warn('Ignored invalid FFT_SIZE (must be one of 512, 1024, 2048):', CONFIG.FFT_SIZE);
       }
     }
 

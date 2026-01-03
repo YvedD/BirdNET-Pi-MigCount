@@ -16,13 +16,15 @@ if(!empty($config['FREQSHIFT_RECONNECT_DELAY']) && is_numeric($config['FREQSHIFT
 define('DEFAULT_FREQSHIFT_RECONNECT_DELAY', 4000);
 define('RTSP_STREAM_RECONNECT_DELAY', 10000);
 
+$safe_home = realpath($home) ?: $home;
+
 $advanced_defaults = [
   'FFT_SIZE' => 512,
   'REDRAW_INTERVAL_MS' => 100,
   'DB_FLOOR' => -80,
   'LOG_FREQUENCY_MAPPING' => true
 ];
-$advanced_config_path = $home . '/BirdNET-Pi/vertical_spectrogram_tuning.json';
+$advanced_config_path = rtrim($safe_home, '/') . '/BirdNET-Pi/vertical_spectrogram_tuning.json';
 
 function load_advanced_settings($path, $defaults) {
   if (!file_exists($path)) {
@@ -65,6 +67,11 @@ if (isset($_GET['advanced_settings'])) {
     }
 
     $input = json_decode(file_get_contents('php://input', false, null, 0, 4096), true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+      http_response_code(400);
+      echo json_encode(['error' => 'Malformed JSON']);
+      die();
+    }
     if (!is_array($input)) {
       http_response_code(400);
       echo json_encode(['error' => 'Invalid payload']);
@@ -678,7 +685,7 @@ canvas {
         </label>
       </div>
       <div style="margin-top: 12px;">
-        <button class="control-button" id="advanced-apply-button" style="width: 100%; padding: 8px;">Apply &amp; Save</button>
+        <button class="control-button" id="advanced-apply-button" aria-label="Apply advanced spectrogram settings" style="width: 100%; padding: 8px;">Apply &amp; Save</button>
       </div>
     </div>
     </div>
