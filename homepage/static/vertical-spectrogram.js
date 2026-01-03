@@ -139,6 +139,7 @@
   let currentDbFloor = typeof CONFIG.DB_FLOOR === 'number' ? CONFIG.DB_FLOOR : -80;
   const DEFAULT_DB_RANGE = 1;
   let dbRange = Math.abs(currentDbFloor) || DEFAULT_DB_RANGE;
+  const VALID_ADVANCED_FFT_SIZES = [512, 1024, 2048];
   const clampX = (value, min, max) => Math.min(max, Math.max(min, value));
 
   function refreshSpectrogramDerivedConfig() {
@@ -941,15 +942,14 @@
    * @param {Object} newConfig - New configuration values
    */
   function updateConfig(newConfig) {
-    const fftSizeChanged = Object.prototype.hasOwnProperty.call(newConfig, 'FFT_SIZE');
-    const derivedChanged = Object.prototype.hasOwnProperty.call(newConfig, 'DB_FLOOR') ||
-      Object.prototype.hasOwnProperty.call(newConfig, 'LOG_FREQUENCY_MAPPING');
+    const fftSizeChanged = Object.hasOwn ? Object.hasOwn(newConfig, 'FFT_SIZE') : Object.prototype.hasOwnProperty.call(newConfig, 'FFT_SIZE');
+    const derivedChanged = (Object.hasOwn ? Object.hasOwn(newConfig, 'DB_FLOOR') : Object.prototype.hasOwnProperty.call(newConfig, 'DB_FLOOR')) ||
+      (Object.hasOwn ? Object.hasOwn(newConfig, 'LOG_FREQUENCY_MAPPING') : Object.prototype.hasOwnProperty.call(newConfig, 'LOG_FREQUENCY_MAPPING'));
 
     Object.assign(CONFIG, newConfig);
     
     if (fftSizeChanged && analyser && Number.isInteger(CONFIG.FFT_SIZE)) {
-      const validFftSizes = [512, 1024, 2048];
-      if (validFftSizes.includes(CONFIG.FFT_SIZE)) {
+      if (VALID_ADVANCED_FFT_SIZES.includes(CONFIG.FFT_SIZE)) {
         analyser.fftSize = CONFIG.FFT_SIZE;
         frequencyData = new Uint8Array(analyser.frequencyBinCount);
         initializeImageData();

@@ -17,7 +17,17 @@ define('DEFAULT_FREQSHIFT_RECONNECT_DELAY', 4000);
 define('RTSP_STREAM_RECONNECT_DELAY', 10000);
 
 $safe_home = realpath($home);
-if ($safe_home === false || strpos($safe_home, '/home/') !== 0) {
+$allowed_bases = ['/home/'];
+$is_allowed_home = false;
+if ($safe_home !== false) {
+  foreach ($allowed_bases as $base) {
+    if (strpos($safe_home, $base) === 0) {
+      $is_allowed_home = true;
+      break;
+    }
+  }
+}
+if (!$is_allowed_home) {
   $safe_home = '/home/runner';
 }
 
@@ -50,7 +60,7 @@ function load_advanced_settings($path, $defaults) {
 function persist_advanced_settings($path, $settings) {
   $directory = dirname($path);
   if (!is_dir($directory)) {
-    mkdir($directory, 0750, true);
+    mkdir($directory, 0700, true);
   }
 
   $written = file_put_contents($path, json_encode($settings, JSON_PRETTY_PRINT));
