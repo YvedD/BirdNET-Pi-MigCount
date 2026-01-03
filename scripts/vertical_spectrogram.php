@@ -17,8 +17,8 @@ define('DEFAULT_FREQSHIFT_RECONNECT_DELAY', 4000);
 define('RTSP_STREAM_RECONNECT_DELAY', 10000);
 
 $safe_home = realpath($home);
-if ($safe_home === false || strpos($safe_home, '..') !== false) {
-  $safe_home = $home;
+if ($safe_home === false || strpos($safe_home, '/home/') !== 0) {
+  $safe_home = '/home/runner';
 }
 
 $advanced_defaults = [
@@ -50,7 +50,7 @@ function load_advanced_settings($path, $defaults) {
 function persist_advanced_settings($path, $settings) {
   $directory = dirname($path);
   if (!is_dir($directory)) {
-    mkdir($directory, 0755, true);
+    mkdir($directory, 0750, true);
   }
 
   $written = file_put_contents($path, json_encode($settings, JSON_PRETTY_PRINT));
@@ -69,7 +69,7 @@ if (isset($_GET['advanced_settings'])) {
       die();
     }
 
-    $raw_input = file_get_contents('php://input', false, null, 0, 5000);
+    $raw_input = file_get_contents('php://input', false, null, 0, 4096);
     if ($raw_input !== false && strlen($raw_input) > 4096) {
       http_response_code(413);
       echo json_encode(['error' => 'Payload too large']);

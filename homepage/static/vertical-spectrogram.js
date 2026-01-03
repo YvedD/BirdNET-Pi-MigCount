@@ -137,14 +137,15 @@
   let logRangeInv = 1 / (logMaxDrawFreq - logMinDrawFreq);
   let useLogFrequencyMapping = CONFIG.LOG_FREQUENCY_MAPPING !== false;
   let currentDbFloor = typeof CONFIG.DB_FLOOR === 'number' ? CONFIG.DB_FLOOR : -80;
-  let dbRange = Math.abs(currentDbFloor) || 1;
+  const DEFAULT_DB_RANGE = 1;
+  let dbRange = Math.abs(currentDbFloor) || DEFAULT_DB_RANGE;
   const clampX = (value, min, max) => Math.min(max, Math.max(min, value));
 
   function refreshSpectrogramDerivedConfig() {
     currentDbFloor = typeof CONFIG.DB_FLOOR === 'number' ? CONFIG.DB_FLOOR : -80;
     dbRange = Math.abs(currentDbFloor);
     if (dbRange === 0) {
-      dbRange = 1;
+      dbRange = DEFAULT_DB_RANGE;
     }
     useLogFrequencyMapping = CONFIG.LOG_FREQUENCY_MAPPING !== false;
     logMinDrawFreq = Math.log(MIN_DRAW_FREQ);
@@ -428,7 +429,7 @@
   // Converteer lineaire magnitude → pseudo-dB in-place
   // Dit verhoogt zichtbaarheid van zachte syllables
   const floor = currentDbFloor;
-  const range = dbRange || 1;
+  const range = dbRange || DEFAULT_DB_RANGE;
   for (let i = 0; i < frequencyData.length; i++) {
     const v = frequencyData[i] / 255.0;
     let db = 20 * Math.log10(v + 1e-6);   // vermijd log(0)
