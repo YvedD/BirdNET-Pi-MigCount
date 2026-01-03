@@ -544,11 +544,11 @@ canvas {
     const RAD_TO_DEG = 180 / Math.PI;
     const SETTINGS_KEY = 'verticalSpectrogramSettingsLite';
     const RTSP_STREAM_RECONNECT_DELAY = <?php echo RTSP_STREAM_RECONNECT_DELAY; ?>;
-    const DEFAULT_CONFIG_URL = '../static/vertical-spectrogram-config.json';
+    const DEFAULT_CONFIG_URL = '../homepage/static/vertical-spectrogram-config.json';
     const DEFAULT_CANVAS_SETTINGS = {
       canvasWidth: 500,
       canvasHeight: 600,
-      smoothing: 0
+      smoothing: 0.0
     };
     let labelRotation = -ROTATION_INCREMENT;
 
@@ -558,42 +558,46 @@ canvas {
       }
 
       loadDefaultConfig()
-        .then(function(defaults) {
-          applyDefaultCanvasSize(defaults);
-          applySmoothing(defaults.smoothing);
-          bootstrapSpectrogram();
-        })
-        .catch(function() {
-          applyDefaultCanvasSize(DEFAULT_CANVAS_SETTINGS);
-          applySmoothing(DEFAULT_CANVAS_SETTINGS.smoothing);
-          bootstrapSpectrogram();
+        .then(startWithDefaults)
+        .catch(function(error) {
+          console.warn('Failed to load configuration, using fallback defaults:', error);
+          startWithDefaults(DEFAULT_CANVAS_SETTINGS);
         });
     });
 
+    function startWithDefaults(defaults) {
+      applyDefaultCanvasSize(defaults);
+      applySmoothing(defaults.smoothing);
+      bootstrapSpectrogram();
+    }
+
     function loadDefaultConfig() {
-      return fetch(DEFAULT_CONFIG_URL, { cache: 'no-store' })
+      return fetchConfig(DEFAULT_CONFIG_URL);
+    }
+
+    function fetchConfig(url) {
+      return fetch(url)
         .then(function(response) {
           if (!response.ok) {
-            throw new Error('Failed to load defaults');
+            throw new Error('Failed to load defaults from ' + url + ' (status ' + response.status + ')');
           }
           return response.json();
         })
         .then(function(data) {
+          const width = Number(data.canvasWidth);
+          const height = Number(data.canvasHeight);
+          const smoothing = Number(data.smoothing);
           return {
-            canvasWidth: parseInt(data.canvasWidth) || DEFAULT_CANVAS_SETTINGS.canvasWidth,
-            canvasHeight: parseInt(data.canvasHeight) || DEFAULT_CANVAS_SETTINGS.canvasHeight,
-            smoothing: typeof data.smoothing === 'number' ? data.smoothing : DEFAULT_CANVAS_SETTINGS.smoothing
+            canvasWidth: Number.isFinite(width) ? width : DEFAULT_CANVAS_SETTINGS.canvasWidth,
+            canvasHeight: Number.isFinite(height) ? height : DEFAULT_CANVAS_SETTINGS.canvasHeight,
+            smoothing: Number.isFinite(smoothing) ? smoothing : DEFAULT_CANVAS_SETTINGS.smoothing
           };
-        })
-        .catch(function(error) {
-          console.warn('Using fallback canvas defaults:', error);
-          return DEFAULT_CANVAS_SETTINGS;
         });
     }
 
     function applyDefaultCanvasSize(defaults) {
-      const width = parseInt(defaults.canvasWidth) || DEFAULT_CANVAS_SETTINGS.canvasWidth;
-      const height = parseInt(defaults.canvasHeight) || DEFAULT_CANVAS_SETTINGS.canvasHeight;
+      const width = defaults.canvasWidth;
+      const height = defaults.canvasHeight;
       const canvasContainer = document.getElementById('canvas-container');
       const canvasWidthInput = document.getElementById('canvas-width-input');
       const canvasHeightInput = document.getElementById('canvas-height-input');
@@ -615,7 +619,7 @@ canvas {
     }
 
     function applySmoothing(smoothingValue) {
-      if (typeof smoothingValue === 'number' && isFinite(smoothingValue)) {
+      if (typeof smoothingValue === 'number' && Number.isFinite(smoothingValue)) {
         VerticalSpectrogram.CONFIG.ANALYSER_SMOOTHING = smoothingValue;
       } else {
         VerticalSpectrogram.CONFIG.ANALYSER_SMOOTHING = DEFAULT_CANVAS_SETTINGS.smoothing;
