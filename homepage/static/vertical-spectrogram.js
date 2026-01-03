@@ -48,6 +48,7 @@
     
     // Spectrogram configuration
     FFT_SIZE: 2048,
+    ANALYSER_SMOOTHING: 0.0,
     
     // Color mapping for frequency data
     MIN_HUE: 280,
@@ -64,6 +65,8 @@
     LOW_CUT_ABSOLUTE_MAX: 2000, // Hz - Absolute maximum to prevent invalid values
     
   };
+  const SMOOTHING_MIN = 0;
+  const SMOOTHING_MAX = 1;
   // =================== Color Schemes ===================
   const COLOR_SCHEMES = {
     purple: {
@@ -195,7 +198,8 @@
       audioContext = new (window.AudioContext || window.webkitAudioContext)();
       analyser = audioContext.createAnalyser();
       analyser.fftSize = CONFIG.FFT_SIZE;
-      analyser.smoothingTimeConstant = 0.0;
+      const smoothing = CONFIG.ANALYSER_SMOOTHING;
+      analyser.smoothingTimeConstant = Math.max(SMOOTHING_MIN, Math.min(SMOOTHING_MAX, smoothing));
       
       // Create source from audio element
       sourceNode = audioContext.createMediaElementSource(audioElement);

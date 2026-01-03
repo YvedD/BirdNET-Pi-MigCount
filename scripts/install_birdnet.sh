@@ -22,6 +22,16 @@ fi
 #Install/Configure /etc/birdnet/birdnet.conf
 ./install_config.sh || exit 1
 sudo -E HOME=$HOME USER=$USER ./install_services.sh || exit 1
+CONFIG_JSON_PATH="$HOME/BirdNET-Pi/homepage/static/vertical-spectrogram-config.json"
+if [ ! -f "$CONFIG_JSON_PATH" ]; then
+  cat > "$CONFIG_JSON_PATH" <<'EOF'
+{
+  "canvasWidth": 500,
+  "canvasHeight": 600,
+  "smoothing": 0.0
+}
+EOF
+fi
 source /etc/birdnet/birdnet.conf
 
 install_birdnet() {
