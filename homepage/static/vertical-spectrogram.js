@@ -47,9 +47,9 @@
     RAPID_DETECTION_INTERVAL_MS: 2000, // Don't show detections within 2 seconds of previous high detection
     
     // Spectrogram configuration
-    FFT_SIZE: 512,
+    FFT_SIZE: 2048,
     DB_FLOOR: -80,
-    LOG_FREQUENCY_MAPPING: true,
+    LOG_FREQUENCY_MAPPING: false,
     BACKGROUND_COLOR: 'hsl(280, 100%, 10%)',
     
     // Color mapping for frequency data
