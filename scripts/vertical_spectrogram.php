@@ -48,14 +48,23 @@ function persist_advanced_settings($path, $settings) {
     mkdir($directory, 0755, true);
   }
 
-  file_put_contents($path, json_encode($settings, JSON_PRETTY_PRINT));
+  $written = file_put_contents($path, json_encode($settings, JSON_PRETTY_PRINT));
+  if ($written === false) {
+    throw new Exception('Failed to persist advanced settings');
+  }
 }
 
 if (isset($_GET['advanced_settings'])) {
   header('Content-Type: application/json');
 
   if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $input = json_decode(file_get_contents('php://input'), true);
+    if (isset($_SERVER['CONTENT_LENGTH']) && (int)$_SERVER['CONTENT_LENGTH'] > 4096) {
+      http_response_code(413);
+      echo json_encode(['error' => 'Payload too large']);
+      die();
+    }
+
+    $input = json_decode(file_get_contents('php://input', false, null, 0, 4096), true);
     if (!is_array($input)) {
       http_response_code(400);
       echo json_encode(['error' => 'Invalid payload']);

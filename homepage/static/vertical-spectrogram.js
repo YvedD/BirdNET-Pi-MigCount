@@ -947,10 +947,15 @@
     Object.assign(CONFIG, newConfig);
     
     if (fftSizeChanged && analyser && Number.isInteger(CONFIG.FFT_SIZE)) {
-      analyser.fftSize = CONFIG.FFT_SIZE;
-      frequencyData = new Uint8Array(analyser.frequencyBinCount);
-      initializeImageData();
-      drawFrequencyLabels();
+      const validFftSizes = [32, 64, 128, 256, 512, 1024, 2048, 4096, 8192, 16384];
+      if (validFftSizes.includes(CONFIG.FFT_SIZE)) {
+        analyser.fftSize = CONFIG.FFT_SIZE;
+        frequencyData = new Uint8Array(analyser.frequencyBinCount);
+        initializeImageData();
+        drawFrequencyLabels();
+      } else {
+        console.warn('Ignored invalid FFT_SIZE (must be power of two):', CONFIG.FFT_SIZE);
+      }
     }
 
     if (derivedChanged) {
