@@ -17,10 +17,7 @@
 
   // =================== Configuration ===================
   const CONFIG = {
-    // Redraw interval in milliseconds
-    // Default: 100ms (suitable for Raspberry Pi 3/4)
-    // For RPi 5 or powerful devices: 50ms
-    // For smartphones/tablets: 100-150ms
+    // Fixed redraw interval in milliseconds (lightweight live indicator)
     REDRAW_INTERVAL_MS: 100,
     
     // Detection label configuration
@@ -78,7 +75,7 @@
     GRID_LABEL_FONT: '13px Roboto Flex',
     GRID_LABEL_OFFSET_X: 3, // Horizontal offset for grid labels
     GRID_LABEL_OFFSET_Y: 8, // Vertical offset for grid labels
-  };
+   };
   // =================== Color Schemes ===================
   const COLOR_SCHEMES = {
     purple: {
@@ -94,6 +91,13 @@
       background: '#000000',
       getColor: function(normalizedValue) {
         const intensity = Math.round(normalizedValue * 255);
+        return `rgb(${intensity}, ${intensity}, ${intensity})`;
+      }
+    },
+    blackwhite_inverted: {
+      background: '#ffffff',
+      getColor: function(normalizedValue) {
+        const intensity = 255 - Math.round(normalizedValue * 255);
         return `rgb(${intensity}, ${intensity}, ${intensity})`;
       }
     },
@@ -139,15 +143,11 @@
   let currentDbFloor = typeof CONFIG.DB_FLOOR === 'number' ? CONFIG.DB_FLOOR : -80;
   const DEFAULT_DB_RANGE = 1;
   let dbRange = Math.abs(currentDbFloor) || DEFAULT_DB_RANGE;
-  const VALID_ADVANCED_FFT_SIZES = [512, 1024, 2048];
   const clampX = (value, min, max) => Math.min(max, Math.max(min, value));
 
   function refreshSpectrogramDerivedConfig() {
     currentDbFloor = typeof CONFIG.DB_FLOOR === 'number' ? CONFIG.DB_FLOOR : -80;
-    dbRange = Math.abs(currentDbFloor);
-    if (dbRange === 0) {
-      dbRange = DEFAULT_DB_RANGE;
-    }
+    dbRange = Math.abs(currentDbFloor) || DEFAULT_DB_RANGE;
     useLogFrequencyMapping = CONFIG.LOG_FREQUENCY_MAPPING !== false;
     logMinDrawFreq = Math.log(MIN_DRAW_FREQ);
     logMaxDrawFreq = Math.log(MAX_DRAW_FREQ);
@@ -250,7 +250,7 @@
       // Create high-pass filter (low-cut filter)
       filterNode = audioContext.createBiquadFilter();
       filterNode.type = 'highpass';
-      filterNode.frequency.value = CONFIG.LOW_CUT_FREQUENCY;
+      filterNode.frequency.value = CONFIG.LOW_CUT_ENABLED ? CONFIG.LOW_CUT_FREQUENCY : 1;
       filterNode.Q.value = 0.7071; // Butterworth response
       
       // Connect nodes: source -> filter -> gain -> analyser -> destination
@@ -942,47 +942,14 @@
    * @param {Object} newConfig - New configuration values
    */
   function updateConfig(newConfig) {
-    const fftSizeChanged = Object.hasOwn ? Object.hasOwn(newConfig, 'FFT_SIZE') : Object.prototype.hasOwnProperty.call(newConfig, 'FFT_SIZE');
-    const derivedChanged = (Object.hasOwn ? Object.hasOwn(newConfig, 'DB_FLOOR') : Object.prototype.hasOwnProperty.call(newConfig, 'DB_FLOOR')) ||
-      (Object.hasOwn ? Object.hasOwn(newConfig, 'LOG_FREQUENCY_MAPPING') : Object.prototype.hasOwnProperty.call(newConfig, 'LOG_FREQUENCY_MAPPING'));
-
-    Object.assign(CONFIG, newConfig);
-    
-    if (fftSizeChanged && analyser && Number.isInteger(CONFIG.FFT_SIZE)) {
-      if (VALID_ADVANCED_FFT_SIZES.includes(CONFIG.FFT_SIZE)) {
-        analyser.fftSize = CONFIG.FFT_SIZE;
-        frequencyData = new Uint8Array(analyser.frequencyBinCount);
-        initializeImageData();
-        drawFrequencyLabels();
-      } else {
-        console.warn('Ignored invalid FFT_SIZE (must be one of 512, 1024, 2048):', CONFIG.FFT_SIZE);
+    // Only allow lightweight, user-facing updates
+    const allowed = ['MIN_CONFIDENCE_THRESHOLD', 'SHOW_FREQUENCY_GRID'];
+    Object.keys(newConfig || {}).forEach(key => {
+      if (allowed.includes(key)) {
+        CONFIG[key] = newConfig[key];
       }
-    }
-
-    if (derivedChanged) {
-      refreshSpectrogramDerivedConfig();
-    }
-
-    // If any frequency grid-related config changed, redraw labels
-    const gridRelatedKeys = ['SHOW_FREQUENCY_GRID', 'GRID_LABEL_COLOR', 'GRID_LABEL_FONT', 
-                              'FREQUENCY_LINES', 'GRID_LABEL_OFFSET_X', 'GRID_LABEL_OFFSET_Y'];
-    const shouldRedrawLabels = gridRelatedKeys.some(key => key in newConfig);
-    
-    if (shouldRedrawLabels) {
-      drawFrequencyLabels();
-    }
-    
-    console.log('Configuration updated:', CONFIG);
-  }
-
-  /**
-   * Set gain value
-   * @param {number} value - Gain value (0-2)
-   */
-  function setGain(value) {
-    if (gainNode) {
-      gainNode.gain.value = value;
-    }
+    });
+    refreshSpectrogramDerivedConfig();
   }
 
   /**
@@ -1055,7 +1022,6 @@
     initialize,
     stop,
     updateConfig,
-    setGain,
     setColorScheme,
     setLowCutFilter,
     setLowCutFrequency,
