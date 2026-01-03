@@ -18,10 +18,10 @@
   // =================== Configuration ===================
   const CONFIG = {
     // Redraw interval in milliseconds
-    // Default: 100ms (suitable for Raspberry Pi 3)
+    // Default: 100ms (suitable for Raspberry Pi 3/4)
     // For RPi 5 or powerful devices: 50ms
     // For smartphones/tablets: 100-150ms
-    REDRAW_INTERVAL_MS: 33,
+    REDRAW_INTERVAL_MS: 100,
     
     // Detection label configuration
     DETECTION_CHECK_INTERVAL_MS: 1000,
@@ -51,6 +51,8 @@
     
     // Spectrogram configuration
     FFT_SIZE: 512,
+    DB_FLOOR: -80,
+    LOG_FREQUENCY_MAPPING: true,
     BACKGROUND_COLOR: 'hsl(280, 100%, 10%)',
     
     // Color mapping for frequency data
@@ -127,6 +129,29 @@
       }
     }
   };
+
+  const MIN_DRAW_FREQ = 1000;    // 1 kHz
+  const MAX_DRAW_FREQ = 11000;   // 11 kHz
+  let logMinDrawFreq = Math.log(MIN_DRAW_FREQ);
+  let logMaxDrawFreq = Math.log(MAX_DRAW_FREQ);
+  let logRangeInv = 1 / (logMaxDrawFreq - logMinDrawFreq);
+  let useLogFrequencyMapping = CONFIG.LOG_FREQUENCY_MAPPING !== false;
+  let currentDbFloor = typeof CONFIG.DB_FLOOR === 'number' ? CONFIG.DB_FLOOR : -80;
+  let dbRange = Math.abs(currentDbFloor) || 1;
+  const clampX = (value, min, max) => Math.min(max, Math.max(min, value));
+
+  function refreshSpectrogramDerivedConfig() {
+    currentDbFloor = typeof CONFIG.DB_FLOOR === 'number' ? CONFIG.DB_FLOOR : -80;
+    dbRange = Math.abs(currentDbFloor);
+    if (dbRange === 0) {
+      dbRange = 1;
+    }
+    useLogFrequencyMapping = CONFIG.LOG_FREQUENCY_MAPPING !== false;
+    logMinDrawFreq = Math.log(MIN_DRAW_FREQ);
+    logMaxDrawFreq = Math.log(MAX_DRAW_FREQ);
+    logRangeInv = 1 / (logMaxDrawFreq - logMinDrawFreq);
+  }
+  refreshSpectrogramDerivedConfig();
 
   // =================== State Management ===================
   let audioContext = null;
@@ -402,11 +427,16 @@
 
   // Converteer lineaire magnitude → pseudo-dB in-place
   // Dit verhoogt zichtbaarheid van zachte syllables
+  const floor = currentDbFloor;
+  const range = dbRange;
   for (let i = 0; i < frequencyData.length; i++) {
     const v = frequencyData[i] / 255.0;
     let db = 20 * Math.log10(v + 1e-6);   // vermijd log(0)
-    db = Math.max(db, -80);               // noise floor
-    frequencyData[i] = Math.round(((db + 80) / 80) * 255);
+    if (db < floor) {
+      db = floor;
+    }
+    const normalized = (db - floor) / range;
+    frequencyData[i] = Math.round(normalized * 255);
   }
   // Scroll bestaande inhoud exact 1 pixel omhoog
   scrollContentUp();
@@ -447,13 +477,6 @@
     currentDetections = currentDetections.filter(det => det.y > -CONFIG.LABEL_OFFSCREEN_THRESHOLD);
   }
 
-  const MIN_DRAW_FREQ = 1000;    // 1 kHz
-  const MAX_DRAW_FREQ = 11000;   // 11 kHz
-  const LOG_MIN_DRAW_FREQ = Math.log(MIN_DRAW_FREQ);
-  const LOG_MAX_DRAW_FREQ = Math.log(MAX_DRAW_FREQ);
-  const LOG_RANGE_INV = 1 / (LOG_MAX_DRAW_FREQ - LOG_MIN_DRAW_FREQ);
-  const clampX = (value, min, max) => Math.min(max, Math.max(min, value));
-
   /**
    * Draw new FFT row at the bottom of the canvas
    * Frequency-limited for bird song syllables (1–11 kHz)
@@ -475,15 +498,22 @@
 
     const widthScale = canvas.width;
     const y = canvas.height - 1; // onderste pixelrij
+    const span = Math.max(1, maxBin - minBin);
+    const linearScale = widthScale / span;
+    const logEnabled = useLogFrequencyMapping;
+    const logMin = logMinDrawFreq;
+    const logInv = logRangeInv;
 
     // Huidig kleurenschema
     const scheme =
       COLOR_SCHEMES[CONFIG.COLOR_SCHEME] || COLOR_SCHEMES.purple;
 
-    const firstFreq = (minBin * nyquist) / binCount;
-    // Floor rounding can place the first bin slightly below MIN_FREQ; clamp to anchor the scale.
-    const firstClamped = Math.min(MAX_DRAW_FREQ, Math.max(MIN_DRAW_FREQ, firstFreq));
-    let currentX = (Math.log(firstClamped) - LOG_MIN_DRAW_FREQ) * LOG_RANGE_INV * widthScale;
+    let currentX = 0;
+    if (logEnabled) {
+      const firstFreq = (minBin * nyquist) / binCount;
+      const firstClamped = Math.min(MAX_DRAW_FREQ, Math.max(MIN_DRAW_FREQ, firstFreq));
+      currentX = (Math.log(firstClamped) - logMin) * logInv * widthScale;
+    }
 
     // --- Teken FFT-rij ---
     // Compute positions inline to avoid per-frame allocations while keeping log spacing.
@@ -493,15 +523,25 @@
 
       ctx.fillStyle = scheme.getColor(normalizedValue);
 
-      const nextFreq = ((i + 1) * nyquist) / binCount;
-      const clampedNext = Math.min(MAX_DRAW_FREQ, Math.max(MIN_DRAW_FREQ, nextFreq));
-      const logNext = (Math.log(clampedNext) - LOG_MIN_DRAW_FREQ) * LOG_RANGE_INV;
-      const nextX = logNext * widthScale;
+      let startX;
+      let endX;
 
-      const startX = clampX(Math.round(currentX), 0, canvas.width - 1);
-      const endX = clampX(Math.max(startX + 1, Math.round(nextX)), 0, canvas.width);
+      if (logEnabled) {
+        const nextFreq = ((i + 1) * nyquist) / binCount;
+        const clampedNext = Math.min(MAX_DRAW_FREQ, Math.max(MIN_DRAW_FREQ, nextFreq));
+        const logNext = (Math.log(clampedNext) - logMin) * logInv;
+        const nextX = logNext * widthScale;
+
+        startX = clampX(Math.round(currentX), 0, canvas.width - 1);
+        endX = clampX(Math.max(startX + 1, Math.round(nextX)), 0, canvas.width);
+        currentX = nextX;
+      } else {
+        const relIndex = i - minBin;
+        startX = clampX(Math.round(relIndex * linearScale), 0, canvas.width - 1);
+        endX = clampX(Math.max(startX + 1, Math.round((relIndex + 1) * linearScale)), 0, canvas.width);
+      }
+
       ctx.fillRect(startX, y, endX - startX, 1);
-      currentX = nextX;
     }
   }
 
@@ -900,8 +940,23 @@
    * @param {Object} newConfig - New configuration values
    */
   function updateConfig(newConfig) {
+    const fftSizeChanged = Object.prototype.hasOwnProperty.call(newConfig, 'FFT_SIZE');
+    const derivedChanged = Object.prototype.hasOwnProperty.call(newConfig, 'DB_FLOOR') ||
+      Object.prototype.hasOwnProperty.call(newConfig, 'LOG_FREQUENCY_MAPPING');
+
     Object.assign(CONFIG, newConfig);
     
+    if (fftSizeChanged && analyser && Number.isInteger(CONFIG.FFT_SIZE)) {
+      analyser.fftSize = CONFIG.FFT_SIZE;
+      frequencyData = new Uint8Array(analyser.frequencyBinCount);
+      initializeImageData();
+      drawFrequencyLabels();
+    }
+
+    if (derivedChanged) {
+      refreshSpectrogramDerivedConfig();
+    }
+
     // If any frequency grid-related config changed, redraw labels
     const gridRelatedKeys = ['SHOW_FREQUENCY_GRID', 'GRID_LABEL_COLOR', 'GRID_LABEL_FONT', 
                               'FREQUENCY_LINES', 'GRID_LABEL_OFFSET_X', 'GRID_LABEL_OFFSET_Y'];
