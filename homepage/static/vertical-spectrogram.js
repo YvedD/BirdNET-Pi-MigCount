@@ -280,13 +280,28 @@
       throw new Error('Canvas has no parent element - cannot resize');
     }
     
-    canvas.width = container.clientWidth;
-    canvas.height = container.clientHeight;
+    const dpr = window.devicePixelRatio || 1;
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+
+    // Set the display size (CSS pixels)
+    canvas.style.width = `${containerWidth}px`;
+    canvas.style.height = `${containerHeight}px`;
+    
+    // Set the internal size to device pixels for sharp rendering
+    canvas.width = Math.round(containerWidth * dpr);
+    canvas.height = Math.round(containerHeight * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     
     // Resize overlay canvas to match
     if (overlayCanvas) {
-      overlayCanvas.width = container.clientWidth;
-      overlayCanvas.height = container.clientHeight;
+      overlayCanvas.style.width = `${containerWidth}px`;
+      overlayCanvas.style.height = `${containerHeight}px`;
+      overlayCanvas.width = Math.round(containerWidth * dpr);
+      overlayCanvas.height = Math.round(containerHeight * dpr);
+      if (overlayCtx) {
+        overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
     }
     
     // Reinitialize image data after resize
