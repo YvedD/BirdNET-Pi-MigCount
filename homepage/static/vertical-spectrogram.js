@@ -48,9 +48,6 @@
     
     // Spectrogram configuration
     FFT_SIZE: 2048,
-    DB_FLOOR: -80,
-    LOG_FREQUENCY_MAPPING: false,
-    BACKGROUND_COLOR: 'hsl(280, 100%, 10%)',
     
     // Color mapping for frequency data
     MIN_HUE: 280,
@@ -66,16 +63,7 @@
     LOW_CUT_MAX_FREQUENCY: 1500, // Hz - Maximum allowed filter frequency (UI limit)
     LOW_CUT_ABSOLUTE_MAX: 2000, // Hz - Absolute maximum to prevent invalid values
     
-    // Frequency grid configuration
-    SHOW_FREQUENCY_GRID: true,
-    SAMPLE_RATE: 48000, // Standard audio sample rate
-    FREQUENCY_LINES: [1000, 2000, 3000, 4000, 5000, 6000, 8000, 10000, 12000], // Hz
-    GRID_LINE_COLOR: 'rgba(128, 128, 128, 0.3)', // Medium gray with lower opacity
-    GRID_LABEL_COLOR: 'rgba(255, 255, 255, 0.85)', // Brighter white for better visibility
-    GRID_LABEL_FONT: '13px Roboto Flex',
-    GRID_LABEL_OFFSET_X: 3, // Horizontal offset for grid labels
-    GRID_LABEL_OFFSET_Y: 8, // Vertical offset for grid labels
-   };
+  };
   // =================== Color Schemes ===================
   const COLOR_SCHEMES = {
     purple: {
@@ -134,26 +122,6 @@
     }
   };
 
-  const MIN_DRAW_FREQ = CONFIG.MIN_DRAW_FREQ || 1000;    // 1 kHz
-  const MAX_DRAW_FREQ = CONFIG.MAX_DRAW_FREQ || 11000;   // 11 kHz
-  let logMinDrawFreq = Math.log(MIN_DRAW_FREQ);
-  let logMaxDrawFreq = Math.log(MAX_DRAW_FREQ);
-  let logRangeInv = 1 / (logMaxDrawFreq - logMinDrawFreq);
-  let useLogFrequencyMapping = CONFIG.LOG_FREQUENCY_MAPPING !== false;
-  let currentDbFloor = typeof CONFIG.DB_FLOOR === 'number' ? CONFIG.DB_FLOOR : -80;
-  const DEFAULT_DB_RANGE = 1;
-  let dbRange = Math.abs(currentDbFloor) || DEFAULT_DB_RANGE;
-  const clampX = (value, min, max) => Math.min(max, Math.max(min, value));
-
-  function refreshSpectrogramDerivedConfig() {
-    currentDbFloor = typeof CONFIG.DB_FLOOR === 'number' ? CONFIG.DB_FLOOR : -80;
-    dbRange = Math.abs(currentDbFloor) || DEFAULT_DB_RANGE;
-    useLogFrequencyMapping = CONFIG.LOG_FREQUENCY_MAPPING !== false;
-    logMinDrawFreq = Math.log(MIN_DRAW_FREQ);
-    logMaxDrawFreq = Math.log(MAX_DRAW_FREQ);
-    logRangeInv = 1 / (logMaxDrawFreq - logMinDrawFreq);
-  }
-  refreshSpectrogramDerivedConfig();
 
   // =================== State Management ===================
   let audioContext = null;
@@ -163,8 +131,6 @@
   let filterNode = null; // High-pass filter for low-cut
   let canvas = null;
   let ctx = null;
-  let overlayCanvas = null;
-  let overlayCtx = null;
   let audioElement = null;
   
   let imageData = null;
@@ -194,12 +160,6 @@
     audioElement = audioEl;
     ctx = canvas.getContext('2d');
     
-    // Get overlay canvas for frequency labels
-    overlayCanvas = document.getElementById('frequency-labels-overlay');
-    if (overlayCanvas) {
-      overlayCtx = overlayCanvas.getContext('2d');
-    }
-    
     // Set canvas size
     resizeCanvas();
     
@@ -208,9 +168,6 @@
     
     // Initialize image data for scrolling
     initializeImageData();
-    
-    // Draw initial frequency labels on overlay
-    drawFrequencyLabels();
     
     // Start rendering loop
     startRenderLoop();
@@ -293,24 +250,10 @@
     canvas.height = Math.round(containerHeight * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     
-    // Resize overlay canvas to match
-    if (overlayCanvas) {
-      overlayCanvas.style.width = `${containerWidth}px`;
-      overlayCanvas.style.height = `${containerHeight}px`;
-      overlayCanvas.width = Math.round(containerWidth * dpr);
-      overlayCanvas.height = Math.round(containerHeight * dpr);
-      if (overlayCtx) {
-        overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      }
-    }
-    
     // Reinitialize image data after resize
     if (ctx) {
       initializeImageData();
     }
-    
-    // Redraw frequency labels on overlay
-    drawFrequencyLabels();
   }
 
   /**
@@ -362,78 +305,6 @@
   }
 
   /**
-   * Draw frequency grid lines on the canvas
-   * In vertical mode, frequency lines are vertical (time flows vertically)
-   */
-  function drawFrequencyGrid() {
-    if (!CONFIG.SHOW_FREQUENCY_GRID) return;
-    
-    ctx.save();
-    ctx.strokeStyle = CONFIG.GRID_LINE_COLOR;
-    ctx.lineWidth = 1;
-    ctx.setLineDash([5, 5]);
-    
-    const nyquist = CONFIG.SAMPLE_RATE / 2;
-    const dataLength = frequencyData.length;
-    const barWidth = canvas.width / dataLength;
-    
-    CONFIG.FREQUENCY_LINES.forEach(freq => {
-      if (freq <= nyquist) {
-        // Calculate X position for this frequency
-        const binIndex = (freq / nyquist) * dataLength;
-        const x = binIndex * barWidth;
-        
-        // Draw vertical line only (labels are on overlay)
-        ctx.beginPath();
-        ctx.moveTo(x, 0);
-        ctx.lineTo(x, canvas.height);
-        ctx.stroke();
-      }
-    });
-    
-    ctx.restore();
-  }
-
-  /**
-   * Draw frequency labels on the fixed overlay canvas
-   * These labels don't scroll with the spectrogram
-   */
-  function drawFrequencyLabels() {
-    if (!CONFIG.SHOW_FREQUENCY_GRID || !overlayCtx || !overlayCanvas) return;
-    
-    // Clear overlay
-    overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-    
-    overlayCtx.save();
-    overlayCtx.fillStyle = CONFIG.GRID_LABEL_COLOR;
-    overlayCtx.font = CONFIG.GRID_LABEL_FONT;
-    overlayCtx.textAlign = 'left';
-    overlayCtx.textBaseline = 'top';
-    
-    const nyquist = CONFIG.SAMPLE_RATE / 2;
-    // Safely get data length
-    const dataLength = frequencyData ? frequencyData.length : (analyser ? analyser.frequencyBinCount : 1024);
-    const barWidth = overlayCanvas.width / dataLength;
-    
-    CONFIG.FREQUENCY_LINES.forEach(freq => {
-      if (freq <= nyquist) {
-        // Calculate X position for this frequency
-        const binIndex = (freq / nyquist) * dataLength;
-        const x = binIndex * barWidth;
-        
-        // Draw frequency label at top
-        overlayCtx.save();
-        overlayCtx.translate(x + CONFIG.GRID_LABEL_OFFSET_X, CONFIG.GRID_LABEL_OFFSET_Y);
-        overlayCtx.rotate(-Math.PI / 2);
-        overlayCtx.fillText(freq >= 1000 ? (freq/1000) + 'kHz' : freq + 'Hz', 0, 0);
-        overlayCtx.restore();
-      }
-    });
-    
-    overlayCtx.restore();
-  }
-
-  /**
    * Render a single frame
    */
   function renderFrame() {
@@ -442,28 +313,11 @@
   // Haal ruwe FFT bins op (0–255)
   analyser.getByteFrequencyData(frequencyData);
 
-  // Converteer lineaire magnitude → pseudo-dB in-place
-  // Dit verhoogt zichtbaarheid van zachte syllables
-  const floor = currentDbFloor;
-  const range = dbRange || DEFAULT_DB_RANGE;
-  for (let i = 0; i < frequencyData.length; i++) {
-    const v = frequencyData[i] / 255.0;
-    let db = 20 * Math.log10(v + 1e-6);   // vermijd log(0)
-    if (db < floor) {
-      db = floor;
-    }
-    const normalized = (db - floor) / range;
-    frequencyData[i] = Math.round(normalized * 255);
-  }
   // Scroll bestaande inhoud exact 1 pixel omhoog
   scrollContentUp();
 
   // Teken nieuwe FFT-rij onderaan (1 tijdstap)
   drawFFTRow();
-
-  // Grid enkel opnieuw tekenen indien nodig
-  // (optioneel optimaliseerbaar, maar correct zo)
-  drawFrequencyGrid();
 
   // Detectielabels volgen de spectrogram-scroll
   drawDetectionLabels();
@@ -507,60 +361,23 @@
     // Veiligheidscheck
     if (!frequencyData || binCount === 0) return;
 
-    // Bepaal bin-range voor 1–11 kHz
-    const minBin = Math.max(0, Math.floor((MIN_DRAW_FREQ / nyquist) * binCount));
-    const maxBin = Math.ceil((MAX_DRAW_FREQ / nyquist) * binCount);
+  const minBin = 0;
+  const maxBin = binCount;
 
-    if (maxBin <= minBin) return;
+  if (maxBin <= minBin) return;
 
-    const widthScale = canvas.width;
-    const y = canvas.height - 1; // onderste pixelrij
-    const span = Math.max(1, maxBin - minBin);
-    const linearScale = widthScale / span;
-    const logEnabled = useLogFrequencyMapping;
-    const logMin = logMinDrawFreq;
-    const logInv = logRangeInv;
+  const widthScale = canvas.width / (maxBin - minBin);
+  const y = canvas.height - 1; // onderste pixelrij
+  const scheme = COLOR_SCHEMES[CONFIG.COLOR_SCHEME] || COLOR_SCHEMES.purple;
 
-    // Huidig kleurenschema
-    const scheme =
-      COLOR_SCHEMES[CONFIG.COLOR_SCHEME] || COLOR_SCHEMES.purple;
-
-    let currentX = 0;
-    if (logEnabled) {
-      const firstFreq = (minBin * nyquist) / binCount;
-      const firstClamped = Math.min(MAX_DRAW_FREQ, Math.max(MIN_DRAW_FREQ, firstFreq));
-      currentX = (Math.log(firstClamped) - logMin) * logInv * widthScale;
-    }
-
-    // --- Teken FFT-rij ---
-    // Compute positions inline to avoid per-frame allocations while keeping log spacing.
-    for (let i = minBin; i < maxBin; i++) {
-      const value = frequencyData[i];
-      const normalizedValue = value / 255;
-
-      ctx.fillStyle = scheme.getColor(normalizedValue);
-
-      let startX;
-      let endX;
-
-      if (logEnabled) {
-        const nextFreq = ((i + 1) * nyquist) / binCount;
-        const clampedNext = Math.min(MAX_DRAW_FREQ, Math.max(MIN_DRAW_FREQ, nextFreq));
-        const logNext = (Math.log(clampedNext) - logMin) * logInv;
-        const nextX = logNext * widthScale;
-
-        startX = clampX(Math.round(currentX), 0, canvas.width - 1);
-        endX = clampX(Math.max(startX + 1, Math.round(nextX)), 0, canvas.width);
-        currentX = nextX;
-      } else {
-        const relIndex = i - minBin;
-        startX = clampX(Math.round(relIndex * linearScale), 0, canvas.width - 1);
-        endX = clampX(Math.max(startX + 1, Math.round((relIndex + 1) * linearScale)), 0, canvas.width);
-      }
-
-      ctx.fillRect(startX, y, endX - startX, 1);
-    }
+  for (let i = minBin; i < maxBin; i++) {
+    const normalizedValue = frequencyData[i] / 255;
+    ctx.fillStyle = scheme.getColor(normalizedValue);
+    const startX = Math.round((i - minBin) * widthScale);
+    const endX = Math.max(startX + 1, Math.round((i - minBin + 1) * widthScale));
+    ctx.fillRect(startX, y, endX - startX, 1);
   }
+}
 
   // =================== Detection Labels ===================
 
