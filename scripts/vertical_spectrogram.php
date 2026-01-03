@@ -16,6 +16,140 @@ if(!empty($config['FREQSHIFT_RECONNECT_DELAY']) && is_numeric($config['FREQSHIFT
 define('DEFAULT_FREQSHIFT_RECONNECT_DELAY', 4000);
 define('RTSP_STREAM_RECONNECT_DELAY', 10000);
 
+$safe_home = realpath($home);
+$allowed_bases = ['/home/'];
+$is_allowed_home = false;
+if ($safe_home !== false) {
+  foreach ($allowed_bases as $base) {
+    if (strpos($safe_home, $base) === 0) {
+      $is_allowed_home = true;
+      break;
+    }
+  }
+}
+if (!$is_allowed_home) {
+  $safe_home = '/home/runner';
+}
+
+$advanced_defaults = [
+  'FFT_SIZE' => 512,
+  'REDRAW_INTERVAL_MS' => 100,
+  'DB_FLOOR' => -80,
+  'LOG_FREQUENCY_MAPPING' => true
+];
+$advanced_config_path = rtrim($safe_home, '/') . '/BirdNET-Pi/vertical_spectrogram_tuning.json';
+
+function load_advanced_settings($path, $defaults) {
+  if (!file_exists($path)) {
+    return $defaults;
+  }
+
+  $raw = file_get_contents($path);
+  if ($raw === false) {
+    return $defaults;
+  }
+
+  $decoded = json_decode($raw, true);
+  if (!is_array($decoded)) {
+    return $defaults;
+  }
+
+  return array_merge($defaults, $decoded);
+}
+
+function persist_advanced_settings($path, $settings) {
+  $directory = dirname($path);
+  if (!is_dir($directory)) {
+    mkdir($directory, 0700, true);
+  }
+
+  $written = file_put_contents($path, json_encode($settings, JSON_PRETTY_PRINT));
+  if ($written === false) {
+    throw new Exception('Failed to persist advanced settings');
+  }
+}
+
+if (isset($_GET['advanced_settings'])) {
+  header('Content-Type: application/json');
+
+  if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (isset($_SERVER['CONTENT_LENGTH']) && (int)$_SERVER['CONTENT_LENGTH'] > 4096) {
+      http_response_code(413);
+      echo json_encode(['error' => 'Payload too large']);
+      die();
+    }
+
+    $raw_input = file_get_contents('php://input', false, null, 0, 4096);
+    if ($raw_input !== false && strlen($raw_input) > 4096) {
+      http_response_code(413);
+      echo json_encode(['error' => 'Payload too large']);
+      die();
+    }
+
+    $input = json_decode($raw_input, true);
+    if (json_last_error() !== JSON_ERROR_NONE) {
+      http_response_code(400);
+      echo json_encode(['error' => 'Malformed JSON']);
+      die();
+    }
+    if (!is_array($input)) {
+      http_response_code(400);
+      echo json_encode(['error' => 'Invalid payload']);
+      die();
+    }
+
+    $validated = [];
+    $valid_fft = [512, 1024, 2048];
+    if (isset($input['FFT_SIZE']) && in_array((int)$input['FFT_SIZE'], $valid_fft, true)) {
+      $validated['FFT_SIZE'] = (int)$input['FFT_SIZE'];
+    } else {
+      http_response_code(400);
+      echo json_encode(['error' => 'Invalid FFT_SIZE']);
+      die();
+    }
+
+    if (isset($input['REDRAW_INTERVAL_MS']) && is_numeric($input['REDRAW_INTERVAL_MS'])) {
+      $interval = (int)$input['REDRAW_INTERVAL_MS'];
+      if ($interval < 30 || $interval > 500) {
+        http_response_code(400);
+        echo json_encode(['error' => 'REDRAW_INTERVAL_MS out of range']);
+        die();
+      }
+      $validated['REDRAW_INTERVAL_MS'] = $interval;
+    } else {
+      http_response_code(400);
+      echo json_encode(['error' => 'Invalid REDRAW_INTERVAL_MS']);
+      die();
+    }
+
+    if (isset($input['DB_FLOOR']) && is_numeric($input['DB_FLOOR'])) {
+      $db_floor = (float)$input['DB_FLOOR'];
+      if ($db_floor > -20 || $db_floor < -120) {
+        http_response_code(400);
+        echo json_encode(['error' => 'DB_FLOOR out of range']);
+        die();
+      }
+      $validated['DB_FLOOR'] = $db_floor;
+    } else {
+      http_response_code(400);
+      echo json_encode(['error' => 'Invalid DB_FLOOR']);
+      die();
+    }
+
+    $validated['LOG_FREQUENCY_MAPPING'] = isset($input['LOG_FREQUENCY_MAPPING']) ? (bool)$input['LOG_FREQUENCY_MAPPING'] : true;
+
+    persist_advanced_settings($advanced_config_path, $validated);
+    echo json_encode($validated);
+    die();
+  }
+
+  $settings = load_advanced_settings($advanced_config_path, $advanced_defaults);
+  echo json_encode($settings);
+  die();
+}
+
+$advanced_settings = load_advanced_settings($advanced_config_path, $advanced_defaults);
+
 // Handle AJAX request for detection data (reuse existing endpoint logic)
 if(isset($_GET['ajax_csv'])) {
   $RECS_DIR = $config["RECS_DIR"];
@@ -490,11 +624,6 @@ canvas {
     <div class="control-group">
       <div class="control-group-title">Display Settings</div>
       <div>
-        <label>Redraw Interval:</label>
-        <input type="range" id="redraw-slider" min="50" max="300" value="100" step="10" />
-        <span class="value-display" id="redraw-value">100ms</span>
-      </div>
-      <div>
         <label>Color Scheme:</label>
         <select id="color-scheme-select">
           <option value="purple" selected>Purple</option>
@@ -551,6 +680,34 @@ canvas {
         <span class="value-display" id="lowcut-value">200Hz</span>
       </div>
     </div>
+    <div class="control-group">
+      <div class="control-group-title">Advanced Spectrogram Tuning</div>
+      <div>
+        <label>FFT Size:</label>
+        <select id="advanced-fft-select">
+          <option value="512">512</option>
+          <option value="1024">1024</option>
+          <option value="2048">2048</option>
+        </select>
+      </div>
+      <div style="margin-top: 8px;">
+        <label>Redraw Interval (ms):</label>
+        <input type="number" id="advanced-redraw-input" min="30" max="500" step="10" value="100" class="size-input" />
+      </div>
+      <div style="margin-top: 8px;">
+        <label>dB Floor:</label>
+        <input type="number" id="advanced-db-floor-input" min="-120" max="-20" step="5" value="-80" class="size-input" />
+      </div>
+      <div style="margin-top: 8px;">
+        <label>
+          <input type="checkbox" id="advanced-logfreq-checkbox" checked />
+          Log-frequency mapping
+        </label>
+      </div>
+      <div style="margin-top: 12px;">
+        <button class="control-button" id="advanced-apply-button" aria-label="Apply advanced spectrogram settings" style="width: 100%; padding: 8px;">Apply &amp; Save</button>
+      </div>
+    </div>
     </div>
   </div>
   </div>
@@ -566,9 +723,146 @@ canvas {
   <script>
     // Configuration from PHP
     const FREQSHIFT_RECONNECT_DELAY = <?php echo $FREQSHIFT_RECONNECT_DELAY; ?>;
+    const ADVANCED_SPECTROGRAM_SETTINGS = <?php echo json_encode($advanced_settings); ?>;
     const ROTATION_INCREMENT = Math.PI / 2;
     const RAD_TO_DEG = 180 / Math.PI;
     let labelRotation = -ROTATION_INCREMENT;
+    const ADVANCED_SETTINGS_ENDPOINT = window.location.pathname.includes('vertical_spectrogram')
+      ? 'vertical_spectrogram.php?advanced_settings=1'
+      : '../scripts/vertical_spectrogram.php?advanced_settings=1';
+
+    function applyAdvancedConfig(settings) {
+      if (!settings || !window.VerticalSpectrogram) {
+        return;
+      }
+
+      const updates = {};
+      const fftSize = parseInt(settings.FFT_SIZE, 10);
+      if ([512, 1024, 2048].includes(fftSize)) {
+        updates.FFT_SIZE = fftSize;
+      }
+
+      const redrawInterval = parseInt(settings.REDRAW_INTERVAL_MS, 10);
+      if (Number.isInteger(redrawInterval)) {
+        updates.REDRAW_INTERVAL_MS = redrawInterval;
+      }
+
+      const dbFloor = parseFloat(settings.DB_FLOOR);
+      if (!Number.isNaN(dbFloor)) {
+        updates.DB_FLOOR = dbFloor;
+      }
+
+      if (typeof settings.LOG_FREQUENCY_MAPPING === 'boolean') {
+        updates.LOG_FREQUENCY_MAPPING = settings.LOG_FREQUENCY_MAPPING;
+      }
+
+      if (Object.keys(updates).length) {
+        VerticalSpectrogram.updateConfig(updates);
+      }
+    }
+
+    function populateAdvancedUi(settings) {
+      if (!settings) return;
+      const fftSelect = document.getElementById('advanced-fft-select');
+      if (fftSelect && settings.FFT_SIZE) {
+        fftSelect.value = String(settings.FFT_SIZE);
+      }
+
+      const redrawInput = document.getElementById('advanced-redraw-input');
+      if (redrawInput && settings.REDRAW_INTERVAL_MS !== undefined) {
+        redrawInput.value = settings.REDRAW_INTERVAL_MS;
+      }
+
+      const dbFloorInput = document.getElementById('advanced-db-floor-input');
+      if (dbFloorInput && settings.DB_FLOOR !== undefined) {
+        dbFloorInput.value = settings.DB_FLOOR;
+      }
+
+      const logfreqCheckbox = document.getElementById('advanced-logfreq-checkbox');
+      if (logfreqCheckbox && settings.LOG_FREQUENCY_MAPPING !== undefined) {
+        logfreqCheckbox.checked = !!settings.LOG_FREQUENCY_MAPPING;
+      }
+    }
+
+    function getAdvancedSettingsFromUi() {
+      const fftSelect = document.getElementById('advanced-fft-select');
+      const redrawInput = document.getElementById('advanced-redraw-input');
+      const dbFloorInput = document.getElementById('advanced-db-floor-input');
+      const logfreqCheckbox = document.getElementById('advanced-logfreq-checkbox');
+
+      if (!fftSelect || !redrawInput || !dbFloorInput || !logfreqCheckbox) {
+        return null;
+      }
+
+      const fftSize = parseInt(fftSelect.value, 10);
+      const redrawInterval = parseInt(redrawInput.value, 10);
+      const dbFloor = parseFloat(dbFloorInput.value);
+      const logfreq = logfreqCheckbox.checked;
+
+      if (![512, 1024, 2048].includes(fftSize)) {
+        alert('FFT size must be 512, 1024, or 2048.');
+        return null;
+      }
+
+      if (!Number.isInteger(redrawInterval) || redrawInterval < 30 || redrawInterval > 500) {
+        alert('Redraw interval must be between 30 and 500 ms.');
+        return null;
+      }
+
+      if (Number.isNaN(dbFloor) || dbFloor > -20 || dbFloor < -120) {
+        alert('dB floor must be between -120 and -20.');
+        return null;
+      }
+
+      return {
+        FFT_SIZE: fftSize,
+        REDRAW_INTERVAL_MS: redrawInterval,
+        DB_FLOOR: dbFloor,
+        LOG_FREQUENCY_MAPPING: logfreq
+      };
+    }
+
+    async function persistAdvancedSettings(settings) {
+      try {
+        const response = await fetch(ADVANCED_SETTINGS_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(settings)
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to save advanced settings');
+        }
+
+        return await response.json();
+      } catch (error) {
+        console.error('Error saving advanced settings:', error);
+        return null;
+      }
+    }
+
+    function setupAdvancedTuningControls() {
+      populateAdvancedUi(ADVANCED_SPECTROGRAM_SETTINGS);
+      applyAdvancedConfig(ADVANCED_SPECTROGRAM_SETTINGS);
+
+      const applyButton = document.getElementById('advanced-apply-button');
+      if (!applyButton) return;
+
+      applyButton.addEventListener('click', async function() {
+        const updatedSettings = getAdvancedSettingsFromUi();
+        if (!updatedSettings) {
+          return;
+        }
+
+        applyAdvancedConfig(updatedSettings);
+        const saved = await persistAdvancedSettings(updatedSettings);
+        if (saved) {
+          populateAdvancedUi(saved);
+        }
+      });
+    }
 
     // Wait for DOM to be ready
     document.addEventListener('DOMContentLoaded', function() {
@@ -579,6 +873,8 @@ canvas {
       labelRotation = (typeof VerticalSpectrogram.CONFIG.LABEL_ROTATION === 'number')
         ? VerticalSpectrogram.CONFIG.LABEL_ROTATION
         : -ROTATION_INCREMENT;
+
+      setupAdvancedTuningControls();
 
       const canvas = document.getElementById('spectrogram-canvas');
       const audioPlayer = document.getElementById('audio-player');
@@ -643,7 +939,6 @@ canvas {
         const settings = {
           gain: document.getElementById('gain-slider')?.value,
           compression: document.getElementById('compression-checkbox')?.checked,
-          redrawInterval: document.getElementById('redraw-slider')?.value,
           colorScheme: document.getElementById('color-scheme-select')?.value,
           frequencyGrid: document.getElementById('frequency-grid-checkbox')?.checked,
           canvasWidth: document.getElementById('canvas-width-input')?.value,
@@ -689,19 +984,6 @@ canvas {
           const compressionCheckbox = document.getElementById('compression-checkbox');
           if (compressionCheckbox) {
             compressionCheckbox.checked = settings.compression;
-          }
-        }
-        
-        // Apply redraw interval
-        if (settings.redrawInterval !== undefined) {
-          const redrawSlider = document.getElementById('redraw-slider');
-          const redrawValue = document.getElementById('redraw-value');
-          if (redrawSlider && redrawValue) {
-            redrawSlider.value = settings.redrawInterval;
-            redrawValue.textContent = settings.redrawInterval + 'ms';
-            VerticalSpectrogram.updateConfig({
-              REDRAW_INTERVAL_MS: parseInt(settings.redrawInterval)
-            });
           }
         }
         
@@ -853,18 +1135,6 @@ canvas {
       const freqshiftSpinner = document.getElementById('freqshift-spinner');
       freqshiftCheckbox.addEventListener('change', function() {
         toggleFreqshift(this.checked);
-      });
-
-      // Redraw interval control
-      const redrawSlider = document.getElementById('redraw-slider');
-      const redrawValue = document.getElementById('redraw-value');
-      redrawSlider.addEventListener('input', function() {
-        const value = parseInt(this.value);
-        redrawValue.textContent = value + 'ms';
-        VerticalSpectrogram.updateConfig({
-          REDRAW_INTERVAL_MS: value
-        });
-        saveSettings();
       });
 
       // Confidence threshold control
