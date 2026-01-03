@@ -490,11 +490,11 @@ canvas {
       <div class="control-group-title">Canvas Size</div>
       <div>
         <label>Width (px):</label>
-        <input type="number" id="canvas-width-input" min="200" max="2000" value="600" step="50" class="size-input" />
+        <input type="number" id="canvas-width-input" min="200" max="2000" value="500" step="50" class="size-input" />
       </div>
       <div style="margin-top: 8px;">
         <label>Height (px):</label>
-        <input type="number" id="canvas-height-input" min="200" max="2000" value="800" step="50" class="size-input" />
+        <input type="number" id="canvas-height-input" min="200" max="2000" value="600" step="50" class="size-input" />
       </div>
       <div style="margin-top: 8px;">
         <button class="control-button" id="apply-size-button" style="width: 100%; padding: 8px;">Apply Size</button>
@@ -544,6 +544,12 @@ canvas {
     const RAD_TO_DEG = 180 / Math.PI;
     const SETTINGS_KEY = 'verticalSpectrogramSettingsLite';
     const RTSP_STREAM_RECONNECT_DELAY = <?php echo RTSP_STREAM_RECONNECT_DELAY; ?>;
+    const DEFAULT_CONFIG_URL = '../static/vertical-spectrogram-config.json';
+    const DEFAULT_CANVAS_SETTINGS = {
+      canvasWidth: 500,
+      canvasHeight: 600,
+      smoothing: 0
+    };
     let labelRotation = -ROTATION_INCREMENT;
 
     document.addEventListener('DOMContentLoaded', function() {
@@ -551,6 +557,72 @@ canvas {
         throw new Error('VerticalSpectrogram unavailable; cannot initialize controls');
       }
 
+      loadDefaultConfig()
+        .then(function(defaults) {
+          applyDefaultCanvasSize(defaults);
+          applySmoothing(defaults.smoothing);
+          bootstrapSpectrogram();
+        })
+        .catch(function() {
+          applyDefaultCanvasSize(DEFAULT_CANVAS_SETTINGS);
+          applySmoothing(DEFAULT_CANVAS_SETTINGS.smoothing);
+          bootstrapSpectrogram();
+        });
+    });
+
+    function loadDefaultConfig() {
+      return fetch(DEFAULT_CONFIG_URL, { cache: 'no-store' })
+        .then(function(response) {
+          if (!response.ok) {
+            throw new Error('Failed to load defaults');
+          }
+          return response.json();
+        })
+        .then(function(data) {
+          return {
+            canvasWidth: parseInt(data.canvasWidth) || DEFAULT_CANVAS_SETTINGS.canvasWidth,
+            canvasHeight: parseInt(data.canvasHeight) || DEFAULT_CANVAS_SETTINGS.canvasHeight,
+            smoothing: typeof data.smoothing === 'number' ? data.smoothing : DEFAULT_CANVAS_SETTINGS.smoothing
+          };
+        })
+        .catch(function(error) {
+          console.warn('Using fallback canvas defaults:', error);
+          return DEFAULT_CANVAS_SETTINGS;
+        });
+    }
+
+    function applyDefaultCanvasSize(defaults) {
+      const width = parseInt(defaults.canvasWidth) || DEFAULT_CANVAS_SETTINGS.canvasWidth;
+      const height = parseInt(defaults.canvasHeight) || DEFAULT_CANVAS_SETTINGS.canvasHeight;
+      const canvasContainer = document.getElementById('canvas-container');
+      const canvasWidthInput = document.getElementById('canvas-width-input');
+      const canvasHeightInput = document.getElementById('canvas-height-input');
+
+      if (canvasWidthInput) {
+        canvasWidthInput.value = width;
+      }
+      if (canvasHeightInput) {
+        canvasHeightInput.value = height;
+      }
+
+      if (canvasContainer) {
+        canvasContainer.style.width = width + 'px';
+        canvasContainer.style.height = height + 'px';
+        canvasContainer.style.maxWidth = width + 'px';
+        canvasContainer.style.flex = 'none';
+        window.dispatchEvent(new Event('resize'));
+      }
+    }
+
+    function applySmoothing(smoothingValue) {
+      if (typeof smoothingValue === 'number' && isFinite(smoothingValue)) {
+        VerticalSpectrogram.CONFIG.ANALYSER_SMOOTHING = smoothingValue;
+      } else {
+        VerticalSpectrogram.CONFIG.ANALYSER_SMOOTHING = DEFAULT_CANVAS_SETTINGS.smoothing;
+      }
+    }
+
+    function bootstrapSpectrogram() {
       labelRotation = (typeof VerticalSpectrogram.CONFIG.LABEL_ROTATION === 'number')
         ? VerticalSpectrogram.CONFIG.LABEL_ROTATION
         : -ROTATION_INCREMENT;
@@ -589,7 +661,7 @@ canvas {
       loadSettings();
       VerticalSpectrogram.setLabelRotation(labelRotation);
       updateRotationValue();
-    });
+    }
 
     function updateRotationValue() {
       const rotationValue = document.getElementById('rotation-value');
@@ -602,8 +674,6 @@ canvas {
       try {
         const settings = {
           colorScheme: document.getElementById('color-scheme-select')?.value,
-          canvasWidth: document.getElementById('canvas-width-input')?.value,
-          canvasHeight: document.getElementById('canvas-height-input')?.value,
           minConfidence: document.getElementById('confidence-slider')?.value,
           lowCutEnabled: document.getElementById('lowcut-checkbox')?.checked,
           lowCutFrequency: document.getElementById('lowcut-slider')?.value,
@@ -630,25 +700,6 @@ canvas {
           if (colorSchemeSelect) {
             colorSchemeSelect.value = settings.colorScheme;
             VerticalSpectrogram.setColorScheme(settings.colorScheme);
-          }
-        }
-
-        if (settings.canvasWidth !== undefined && settings.canvasHeight !== undefined) {
-          const canvasWidthInput = document.getElementById('canvas-width-input');
-          const canvasHeightInput = document.getElementById('canvas-height-input');
-          const canvasContainer = document.getElementById('canvas-container');
-          if (canvasWidthInput && canvasHeightInput && canvasContainer) {
-            const width = parseInt(settings.canvasWidth);
-            const height = parseInt(settings.canvasHeight);
-            if (width >= 200 && width <= 2000 && height >= 200 && height <= 2000) {
-              canvasWidthInput.value = width;
-              canvasHeightInput.value = height;
-              canvasContainer.style.width = width + 'px';
-              canvasContainer.style.height = height + 'px';
-              canvasContainer.style.maxWidth = width + 'px';
-              canvasContainer.style.flex = 'none';
-              window.dispatchEvent(new Event('resize'));
-            }
           }
         }
 

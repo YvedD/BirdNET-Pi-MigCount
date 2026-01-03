@@ -87,8 +87,8 @@ Choose from multiple color schemes:
 
 ## Technical Details
 
-### Canvas Width
-The spectrogram canvas is now limited to a maximum width of 600px for better viewing on various devices while leaving room for the sidebar controls.
+### Canvas Size
+The vertical spectrogram defaults to a 500px width and 600px height (loaded from `vertical-spectrogram-config.json`). Users can resize during a session, but each new view restores these defaults.
 
 ### Rendering Quality
 - Improved anti-aliasing for sharper text

@@ -48,6 +48,7 @@
     
     // Spectrogram configuration
     FFT_SIZE: 2048,
+    ANALYSER_SMOOTHING: 0.0,
     
     // Color mapping for frequency data
     MIN_HUE: 280,
@@ -195,7 +196,7 @@
       audioContext = new (window.AudioContext || window.webkitAudioContext)();
       analyser = audioContext.createAnalyser();
       analyser.fftSize = CONFIG.FFT_SIZE;
-      analyser.smoothingTimeConstant = 0.0;
+      analyser.smoothingTimeConstant = Math.max(0, Math.min(1, CONFIG.ANALYSER_SMOOTHING || 0));
       
       // Create source from audio element
       sourceNode = audioContext.createMediaElementSource(audioElement);
