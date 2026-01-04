@@ -483,6 +483,7 @@ canvas {
           <option value="blackwhite_inverted">Black-White Inverted</option>
           <option value="lava">Lava</option>
           <option value="greenwhite">Green-White</option>
+          <option value="greenwhite_inverted">Green-White Inverted</option>
         </select>
       </div>
     </div>
