@@ -152,10 +152,15 @@
    * @returns {string} Fully qualified endpoint path
    */
   function buildSpectrogramEndpoint(query) {
-    const base = window.VERTICAL_SPECTROGRAM_ENDPOINT
-      || (window.location.pathname.includes('vertical_spectrogram')
-        ? 'vertical_spectrogram.php'
-        : '../scripts/vertical_spectrogram.php');
+    const override = (typeof window !== 'undefined'
+      && typeof window.VERTICAL_SPECTROGRAM_ENDPOINT === 'string'
+      && window.VERTICAL_SPECTROGRAM_ENDPOINT.trim().length > 0)
+      ? window.VERTICAL_SPECTROGRAM_ENDPOINT.trim()
+      : null;
+
+    const base = override || (window.location.pathname.includes('vertical_spectrogram')
+      ? 'vertical_spectrogram.php'
+      : '../scripts/vertical_spectrogram.php');
     return base + query;
   }
 
