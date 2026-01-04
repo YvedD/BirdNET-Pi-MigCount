@@ -139,10 +139,11 @@ html, body {
 
 #canvas-container {
   position: relative;
-  flex: 1;
+  display: flex;
+  justify-content: center; /* horizontaal centreren canvas */
+  align-items: center;     /* verticaal centreren canvas */
+  flex-direction: column;
   height: 100%;
-  min-width: 500px;   /* nieuw */
-  min-height: 600px;  /* nieuw */
   max-width: 100%;
   margin: 0;
 }
