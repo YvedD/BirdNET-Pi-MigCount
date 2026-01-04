@@ -146,6 +146,19 @@
   let newestDetectionFile = null;
   let currentDetections = [];
 
+  /**
+   * Build an endpoint URL for spectrogram actions that works from any page
+   * @param {string} query - Query string beginning with '?'
+   * @returns {string} Fully qualified endpoint path
+   */
+  function buildSpectrogramEndpoint(query) {
+    const base = window.VERTICAL_SPECTROGRAM_ENDPOINT
+      || (window.location.pathname.includes('vertical_spectrogram')
+        ? 'vertical_spectrogram.php'
+        : '../scripts/vertical_spectrogram.php');
+    return base + query;
+  }
+
   // =================== Initialization ===================
   
   /**
@@ -412,10 +425,9 @@
     const xhr = new XMLHttpRequest();
     // Call the detection endpoint on the current page (vertical_spectrogram.php)
     // The AJAX handling code is included in vertical_spectrogram.php
-    // Use a relative path that works from the views.php iframe context
-    const endpoint = window.location.pathname.includes('vertical_spectrogram') 
-      ? 'vertical_spectrogram.php?ajax_csv=true&newest_file=' + encodeURIComponent(newestDetectionFile || '')
-      : '../scripts/vertical_spectrogram.php?ajax_csv=true&newest_file=' + encodeURIComponent(newestDetectionFile || '');
+    const endpoint = buildSpectrogramEndpoint(
+      '?ajax_csv=true&newest_file=' + encodeURIComponent(newestDetectionFile || '')
+    );
     xhr.open('GET', endpoint, true);
     
     xhr.onload = function() {
@@ -699,10 +711,7 @@
         
         // Send to server
         const xhr = new XMLHttpRequest();
-        // Use relative path that works from current context
-        const endpoint = window.location.pathname.includes('vertical_spectrogram')
-          ? window.location.pathname + '?save_screenshot=true'
-          : '../scripts/vertical_spectrogram.php?save_screenshot=true';
+        const endpoint = buildSpectrogramEndpoint('?save_screenshot=true');
         xhr.open('POST', endpoint, true);
         
         xhr.onload = function() {

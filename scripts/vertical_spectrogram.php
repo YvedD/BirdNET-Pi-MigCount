@@ -5,6 +5,7 @@ ini_set('display_errors',1);
 require_once __DIR__ . '/common.php';
 $home = get_home();
 $config = get_config();
+$isMiniLayout = isset($_GET['mini']);
 
 define('RTSP_STREAM_RECONNECT_DELAY', 10000);
 
@@ -378,6 +379,57 @@ canvas {
   font-size: 11px;
 }
 
+/* Compact mini layout (500x850 base, scales to viewport) */
+body.mini-layout {
+  --mini-base-width: 500px;
+  --mini-base-height: 850px;
+  --mini-scale: min(1, min(100vw / var(--mini-base-width), 100vh / var(--mini-base-height)));
+  background: #000;
+  align-items: flex-start;
+  justify-content: center;
+  overflow: hidden;
+}
+
+body.mini-layout #mini-shell {
+  position: relative;
+  width: calc(var(--mini-base-width) * var(--mini-scale));
+  height: calc(var(--mini-base-height) * var(--mini-scale));
+  overflow: hidden;
+}
+
+body.mini-layout #main-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: var(--mini-base-width);
+  height: var(--mini-base-height);
+  flex-direction: column;
+  transform: scale(var(--mini-scale));
+  transform-origin: top center;
+  background: #000;
+  box-shadow: none;
+}
+
+body.mini-layout #canvas-container {
+  width: 100%;
+  height: 60%;
+  max-height: calc(var(--mini-base-height) - 250px);
+  flex: 1 1 auto;
+}
+
+body.mini-layout .sidebar {
+  width: 100%;
+  max-height: 250px;
+  overflow-y: auto;
+  background: rgba(0, 0, 0, 0.9);
+  box-shadow: none;
+  padding: 12px;
+}
+
+body.mini-layout #loading-message {
+  font-size: 18px;
+}
+
 /* Mobile optimizations */
 @media only screen and (max-width: 768px) {
   #main-container {
@@ -409,7 +461,8 @@ canvas {
 }
   </style>
 </head>
-<body>
+<body<?php if ($isMiniLayout) { echo ' class="mini-layout"'; } ?>>
+  <?php if ($isMiniLayout) { echo '<div id="mini-shell">'; } ?>
   <div id="main-container">
     <div id="canvas-container">
       <div id="loading-message">Loading Vertical Spectrogram...</div>
@@ -530,6 +583,7 @@ canvas {
     </div>
   </div>
   </div>
+  <?php if ($isMiniLayout) { echo '</div>'; } ?>
 
   <!-- Hidden audio element for stream -->
   <audio id="audio-player" style="display:none" crossorigin="anonymous" preload="none">
