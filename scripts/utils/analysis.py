@@ -1,9 +1,12 @@
 import logging
 import os
 import time
+import inspect
+from functools import lru_cache
 
-import librosa
 import numpy as np
+import librosa
+from scipy.signal import butter, sosfilt
 
 from .classes import Detection, ParseFileName
 from .helpers import get_settings, get_language
@@ -12,6 +15,47 @@ from .models import get_model
 log = logging.getLogger(__name__)
 
 MODEL = None
+HIGHPASS_FILTER_ORDER = 4
+_HIGH_PASS_CACHE_SIZE = 32
+
+
+@lru_cache(maxsize=128)
+def _accepts_fallback_for_callable(func):
+    try:
+        sig = inspect.signature(func)
+        return any(param.name == 'fallback' for param in sig.parameters.values())
+    except (TypeError, ValueError):
+        return False
+
+
+def _accepts_fallback(getter):
+    return _accepts_fallback_for_callable(getter)
+
+
+def _get_numeric_setting(conf, key, default=0.0):
+    getter = getattr(conf, 'get', None)
+    if not callable(getter):
+        return default
+    if _accepts_fallback_for_callable(getter):
+        value = getter(key, fallback=default)
+    else:
+        value = getter(key, default)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+@lru_cache(maxsize=_HIGH_PASS_CACHE_SIZE)
+def _get_highpass_sos(order, cutoff_hz, rate):
+    return butter(order, cutoff_hz, btype='highpass', fs=rate, output='sos')
+
+
+def apply_highpass_filter(sig, rate, cutoff_hz):
+    if cutoff_hz <= 0 or cutoff_hz > rate / 2:
+        return sig
+    sos = _get_highpass_sos(HIGHPASS_FILTER_ORDER, cutoff_hz, rate)
+    return sosfilt(sos, sig)
 
 
 def loadCustomSpeciesList(path):
@@ -44,11 +88,15 @@ def splitSignal(sig, rate, overlap, seconds=3.0, minlen=1.5):
     return sig_splits
 
 
-def readAudioData(path, overlap, sample_rate, chunk_duration):
+def readAudioData(path, overlap, sample_rate, chunk_duration, highpass_hz=0.0):
     log.info('READING AUDIO DATA...')
 
     # Open file with librosa (uses ffmpeg or libav)
     sig, rate = librosa.load(path, sr=sample_rate, mono=True, res_type='kaiser_fast')
+
+    if highpass_hz > 0:
+        sig = apply_highpass_filter(sig, rate, highpass_hz)
+        log.debug('Applied high-pass filter at %s Hz', highpass_hz)
 
     # Split audio into chunks
     chunks = splitSignal(sig, rate, overlap, seconds=chunk_duration)
@@ -145,10 +193,11 @@ def run_analysis(file):
     conf = get_settings()
     model = load_global_model()
     names = get_language(conf['DATABASE_LANG'])
+    highpass_hz = _get_numeric_setting(conf, 'HIGHPASS_HZ', 0.0)
 
     # Read audio data & handle errors
     try:
-        audio_data = readAudioData(file.file_name, conf.getfloat('OVERLAP'), model.sample_rate, model.chunk_duration)
+        audio_data = readAudioData(file.file_name, conf.getfloat('OVERLAP'), model.sample_rate, model.chunk_duration, highpass_hz)
     except (NameError, TypeError) as e:
         log.error("Error with the following info: %s", e)
         return []

@@ -2,10 +2,20 @@ import os
 import unittest
 from unittest.mock import patch
 
-from scripts.utils.analysis import run_analysis
+from scripts.utils.analysis import run_analysis, _get_numeric_setting
 from scripts.utils.classes import ParseFileName
 from tests.helpers import TESTDATA, Settings
 from scripts.utils.analysis import filter_humans
+
+
+class DummyConf:
+    def __init__(self, value):
+        self.value = value
+
+    def get(self, key, fallback=None):
+        if key == 'HIGHPASS_HZ':
+            return self.value
+        return fallback
 
 
 class TestRunAnalysis(unittest.TestCase):
@@ -46,6 +56,17 @@ class TestRunAnalysis(unittest.TestCase):
         for det, expected in zip(detections, expected_results):
             self.assertAlmostEqual(det.confidence, expected['confidence'], delta=1e-4)
             self.assertEqual(det.scientific_name, expected['sci_name'])
+
+
+class TestHighPassConfig(unittest.TestCase):
+
+    def test_dict_conf_uses_default(self):
+        conf = Settings.with_defaults()
+        self.assertEqual(_get_numeric_setting(conf, 'HIGHPASS_HZ', 0.0), 0.0)
+
+    def test_conf_with_fallback(self):
+        self.assertEqual(_get_numeric_setting(DummyConf('150'), 'HIGHPASS_HZ', 0.0), 150.0)
+        self.assertEqual(_get_numeric_setting(DummyConf('invalid'), 'HIGHPASS_HZ', 120.0), 120.0)
 
 
 class TestFilterHumans(unittest.TestCase):
