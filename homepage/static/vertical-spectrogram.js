@@ -145,6 +145,21 @@
   let isInitialized = false;
   let newestDetectionFile = null;
   let currentDetections = [];
+  let resumeInProgress = false;
+
+  function resumeAudioContextIfSuspended() {
+    if (!audioContext || typeof audioContext.resume !== 'function') {
+      return;
+    }
+    if (audioContext.state === 'suspended' && !resumeInProgress) {
+      resumeInProgress = true;
+      audioContext.resume()
+        .catch(() => {})
+        .finally(() => {
+          resumeInProgress = false;
+        });
+    }
+  }
 
   /**
    * Build an endpoint URL for spectrogram actions that works from any page
@@ -180,6 +195,7 @@
     canvas = canvasElement;
     audioElement = audioEl;
     ctx = canvas.getContext('2d');
+    audioElement.addEventListener('playing', resumeAudioContextIfSuspended);
     
     // Set canvas size
     resizeCanvas();
@@ -218,6 +234,7 @@
       analyser.fftSize = CONFIG.FFT_SIZE;
       const smoothing = CONFIG.ANALYSER_SMOOTHING;
       analyser.smoothingTimeConstant = Math.max(SMOOTHING_MIN, Math.min(SMOOTHING_MAX, smoothing));
+      resumeAudioContextIfSuspended();
       
       // Create source from audio element
       sourceNode = audioContext.createMediaElementSource(audioElement);
@@ -877,6 +894,7 @@
     setLowCutFrequency,
     setLabelRotation,
     captureScreenshot,
+    resumeAudioContext: resumeAudioContextIfSuspended,
     CONFIG,
     COLOR_SCHEMES
   };
