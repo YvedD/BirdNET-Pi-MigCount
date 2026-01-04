@@ -153,9 +153,7 @@
    */
   function buildSpectrogramEndpoint(query) {
     // Optional override for custom hosting scenarios (e.g., reverse proxies or alternate mount points)
-    const override = (typeof window.VERTICAL_SPECTROGRAM_ENDPOINT === 'string') 
-      ? window.VERTICAL_SPECTROGRAM_ENDPOINT.trim()
-      : '';
+    const override = window.VERTICAL_SPECTROGRAM_ENDPOINT?.trim() ?? '';
 
     const normalizedOverride = override.length > 0 ? override : null;
 
