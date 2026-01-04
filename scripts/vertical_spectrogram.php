@@ -139,15 +139,13 @@ html, body {
 
 #canvas-container {
   position: relative;
-  display: flex;
-  justify-content: center; /* horizontaal centreren canvas */
-  align-items: center;     /* verticaal centreren canvas */
-  flex-direction: column;
+  flex: 1;
   height: 100%;
+  min-width: 500px;   /* nieuw */
+  min-height: 600px;  /* nieuw */
   max-width: 100%;
   margin: 0;
 }
-
 #frequency-labels-overlay {
   position: absolute;
   top: 0;
