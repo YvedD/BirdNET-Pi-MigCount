@@ -153,12 +153,13 @@
    */
   function buildSpectrogramEndpoint(query) {
     const override = (typeof window !== 'undefined'
-      && typeof window.VERTICAL_SPECTROGRAM_ENDPOINT === 'string'
-      && window.VERTICAL_SPECTROGRAM_ENDPOINT.trim().length > 0)
+      && typeof window.VERTICAL_SPECTROGRAM_ENDPOINT === 'string') 
       ? window.VERTICAL_SPECTROGRAM_ENDPOINT.trim()
-      : null;
+      : '';
 
-    const base = override || (window.location.pathname.includes('vertical_spectrogram')
+    const normalizedOverride = override.length > 0 ? override : null;
+
+    const base = normalizedOverride || (window.location.pathname.includes('vertical_spectrogram')
       ? 'vertical_spectrogram.php'
       : '../scripts/vertical_spectrogram.php');
     return base + query;

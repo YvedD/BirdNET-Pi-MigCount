@@ -383,7 +383,7 @@ canvas {
 body.mini-layout {
   --mini-base-width: 500px;
   --mini-base-height: 850px;
-  --mini-scale: min(1, min(100vw / var(--mini-base-width), 100vh / var(--mini-base-height)));
+  --mini-scale: min(1, 100vw / var(--mini-base-width), 100vh / var(--mini-base-height));
   background: #000;
   display: flex;
   align-items: flex-start;
@@ -462,7 +462,7 @@ body.mini-layout #loading-message {
 }
   </style>
 </head>
-<body<?php if ($isMiniLayout) { echo ' class="mini-layout"'; } ?>>
+<body class="<?php echo $isMiniLayout ? 'mini-layout' : ''; ?>">
   <?php if ($isMiniLayout) { echo '<div id="mini-shell">'; } ?>
   <div id="main-container">
     <div id="canvas-container">
