@@ -127,7 +127,7 @@ if(isset($_GET['legacy']) && $_GET['legacy'] == "true") {
 window.onload = function(){
   var playersrc =  document.getElementById('playersrc');
   playersrc.onerror = function() {
-    window.location="views.php?view=Spectrogram&legacy=true";
+    window.location="/views.php?view=Spectrogram&legacy=true";
   };
 
   // if user agent includes iPhone or Mac use legacy mode
@@ -144,7 +144,7 @@ window.onload = function(){
   ?>
     // every $refresh seconds, this loop will run and refresh the spectrogram image
   window.setInterval(function(){
-    document.getElementById("spectrogramimage").src = "spectrogram.png?nocache="+Date.now();
+    document.getElementById("spectrogramimage").src = "/spectrogram.png?nocache="+Date.now();
   }, <?php echo $refresh; ?>*1000);
   } else {
     document.getElementById("spectrogramimage").remove();
@@ -667,7 +667,7 @@ h1 {
 }
 </style>
 
-<img id="spectrogramimage" style="width:100%;height:100%;display:none" src="spectrogram.png?nocache=<?php echo $time;?>">
+<img id="spectrogramimage" style="width:100%;height:100%;display:none" src="/spectrogram.png?nocache=<?php echo $time;?>">
 
 <div class="control-section centered" style="font-size: 0.9em;">
   <div style="display:inline; margin-right: 15px;">
@@ -767,7 +767,7 @@ h1 {
   </div>
 </div>
 
-<audio style="display:none" controls="" crossorigin="anonymous" id='player' preload="none"><source id="playersrc" src="stream"></audio>
+<audio style="display:none" controls="" crossorigin="anonymous" id='player' preload="none"><source id="playersrc" src="/stream"></audio>
 <h1 id="loading-h1">Loading...</h1>
 <canvas></canvas>
 

@@ -533,7 +533,7 @@ canvas {
 
   <!-- Hidden audio element for stream -->
   <audio id="audio-player" style="display:none" crossorigin="anonymous" preload="none">
-    <source src="stream">
+    <source src="/stream">
   </audio>
 
   <!-- Load vertical spectrogram script -->
@@ -544,7 +544,7 @@ canvas {
     const RAD_TO_DEG = 180 / Math.PI;
     const SETTINGS_KEY = 'verticalSpectrogramSettingsLite';
     const RTSP_STREAM_RECONNECT_DELAY = <?php echo RTSP_STREAM_RECONNECT_DELAY; ?>;
-    const DEFAULT_CONFIG_URL = '../homepage/static/vertical-spectrogram-config.json';
+    const DEFAULT_CONFIG_URL = '/static/vertical-spectrogram-config.json';
     const DEFAULT_CANVAS_SETTINGS = {
       canvasWidth: 500,
       canvasHeight: 600,
