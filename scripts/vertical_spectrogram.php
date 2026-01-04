@@ -5,7 +5,7 @@ ini_set('display_errors',1);
 require_once __DIR__ . '/common.php';
 $home = get_home();
 $config = get_config();
-$isMiniLayout = isset($_GET['mini']);
+$isMiniLayout = filter_input(INPUT_GET, 'mini', FILTER_VALIDATE_BOOLEAN);
 
 define('RTSP_STREAM_RECONNECT_DELAY', 10000);
 
