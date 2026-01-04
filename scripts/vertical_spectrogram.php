@@ -147,6 +147,7 @@ html, body {
   max-width: 100%;
   margin: 0;
 }
+
 #frequency-labels-overlay {
   position: absolute;
   top: 0;
