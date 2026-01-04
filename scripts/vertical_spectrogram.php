@@ -477,7 +477,7 @@ canvas {
       <div class="control-group-title">Display Settings</div>
       <div>
         <label>Color Scheme:</label>
-        <select id="color-scheme-select">
+        <select id="color-scheme-select style="background-color: black; color: white;">
           <option value="purple" selected>Purple</option>
           <option value="blackwhite">Black-White</option>
           <option value="blackwhite_inverted">Black-White Inverted</option>
