@@ -587,7 +587,7 @@ body.mini-layout #loading-message {
   <?php if ($isMiniLayout) { echo '</div>'; } ?>
 
   <!-- Hidden audio element for stream -->
-  <audio id="audio-player" style="display:none" crossorigin="anonymous" preload="none">
+  <audio id="audio-player" style="display:none" crossorigin="anonymous" preload="none" playsinline muted autoplay>
     <source src="stream">
   </audio>
 
@@ -599,7 +599,11 @@ body.mini-layout #loading-message {
     const RAD_TO_DEG = 180 / Math.PI;
     const SETTINGS_KEY = 'verticalSpectrogramSettingsLite';
     const RTSP_STREAM_RECONNECT_DELAY = <?php echo RTSP_STREAM_RECONNECT_DELAY; ?>;
-    const DEFAULT_CONFIG_URL = '../homepage/static/vertical-spectrogram-config.json';
+    const DEFAULT_CONFIG_URLS = [
+      '../homepage/static/vertical-spectrogram-config.json',
+      '/homepage/static/vertical-spectrogram-config.json',
+      '../static/vertical-spectrogram-config.json'
+    ];
     const DEFAULT_CANVAS_SETTINGS = {
       canvasWidth: 500,
       canvasHeight: 600,
@@ -627,7 +631,7 @@ body.mini-layout #loading-message {
     }
 
     function loadDefaultConfig() {
-      return fetchConfig(DEFAULT_CONFIG_URL);
+      return fetchFirstAvailableConfig(DEFAULT_CONFIG_URLS);
     }
 
     function fetchConfig(url) {
@@ -648,6 +652,17 @@ body.mini-layout #loading-message {
             smoothing: Number.isFinite(smoothing) ? smoothing : DEFAULT_CANVAS_SETTINGS.smoothing
           };
         });
+    }
+
+    function fetchFirstAvailableConfig(urls) {
+      return urls.reduce(function(chain, url) {
+        return chain.catch(function() {
+          return fetchConfig(url);
+        });
+      }, Promise.reject()).catch(function(lastError) {
+        // If all attempts fail, throw to allow fallback defaults
+        throw lastError;
+      });
     }
 
     function applyDefaultCanvasSize(defaults) {
@@ -712,6 +727,9 @@ body.mini-layout #loading-message {
         const playPromise = audioPlayer.play();
         if (playPromise && typeof playPromise.catch === 'function') {
           playPromise.then(function() {
+            if (window.VerticalSpectrogram && typeof VerticalSpectrogram.resumeAudioContext === 'function') {
+              VerticalSpectrogram.resumeAudioContext();
+            }
             audioPlayer.muted = false;
           }).catch(function() {
             loadingMessage.textContent = 'Loading audio stream...';
