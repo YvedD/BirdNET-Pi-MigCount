@@ -160,7 +160,7 @@
 
     const normalizedOverride = override.length > 0 ? override : null;
 
-    const base = normalizedOverride || (window.location.pathname.includes('vertical_spectrogram')
+    const base = normalizedOverride || (window.location.pathname.endsWith('vertical_spectrogram.php')
       ? 'vertical_spectrogram.php'
       : '../scripts/vertical_spectrogram.php');
     return base + query;
