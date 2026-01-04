@@ -82,8 +82,10 @@ Both spectrograms now include optional frequency reference lines:
 Choose from multiple color schemes:
 - **Purple** (default): Traditional spectrogram appearance
 - **Black-White**: High contrast monochrome
+- **Black-White Inverted**: Monochrome with inverted intensity
 - **Lava**: Warm colors from black to red to yellow
 - **Green-White**: Cool colors for a different aesthetic
+- **Green-White Inverted**: Light background with inverted green emphasis
 
 ## Technical Details
 

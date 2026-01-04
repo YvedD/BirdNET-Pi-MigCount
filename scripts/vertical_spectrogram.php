@@ -196,17 +196,30 @@ html, body {
   font-family: 'Roboto Flex', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+}
+
 #main-container {
   display: flex;
   height: 100%;
   width: 100%;
+  max-width: 95vw;
+  max-height: 95vh;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
 }
 
 #canvas-container {
   position: relative;
-  flex: 1;
+  flex: 0 1 auto;
   height: 100%;
   max-width: 100%;
+  min-width: 500px;
   margin: 0;
 }
 
@@ -382,6 +395,12 @@ canvas {
 @media only screen and (max-width: 768px) {
   #main-container {
     flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+  }
+  
+  #canvas-container {
+    min-width: 100%;
   }
   
   .sidebar {
@@ -483,6 +502,7 @@ canvas {
           <option value="blackwhite_inverted">Black-White Inverted</option>
           <option value="lava">Lava</option>
           <option value="greenwhite">Green-White</option>
+          <option value="greenwhite_inverted">Green-White Inverted</option>
         </select>
       </div>
     </div>
