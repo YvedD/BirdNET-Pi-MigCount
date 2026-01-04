@@ -8,6 +8,16 @@ from tests.helpers import TESTDATA, Settings
 from scripts.utils.analysis import filter_humans
 
 
+class DummyConf:
+    def __init__(self, value):
+        self.value = value
+
+    def get(self, key, fallback=None):
+        if key == 'HIGHPASS_HZ':
+            return self.value
+        return fallback
+
+
 class TestRunAnalysis(unittest.TestCase):
 
     def setUp(self):
@@ -45,7 +55,7 @@ class TestRunAnalysis(unittest.TestCase):
         self.assertEqual(len(detections), len(expected_results))
         for det, expected in zip(detections, expected_results):
             self.assertAlmostEqual(det.confidence, expected['confidence'], delta=1e-4)
-        self.assertEqual(det.scientific_name, expected['sci_name'])
+            self.assertEqual(det.scientific_name, expected['sci_name'])
 
 
 class TestHighPassConfig(unittest.TestCase):
@@ -55,17 +65,8 @@ class TestHighPassConfig(unittest.TestCase):
         self.assertEqual(_get_numeric_setting(conf, 'HIGHPASS_HZ', 0.0), 0.0)
 
     def test_conf_with_fallback(self):
-        class Conf:
-            def __init__(self, value):
-                self.value = value
-
-            def get(self, key, fallback=None):
-                if key == 'HIGHPASS_HZ':
-                    return self.value
-                return fallback
-
-        self.assertEqual(_get_numeric_setting(Conf('150'), 'HIGHPASS_HZ', 0.0), 150.0)
-        self.assertEqual(_get_numeric_setting(Conf('invalid'), 'HIGHPASS_HZ', 120.0), 120.0)
+        self.assertEqual(_get_numeric_setting(DummyConf('150'), 'HIGHPASS_HZ', 0.0), 150.0)
+        self.assertEqual(_get_numeric_setting(DummyConf('invalid'), 'HIGHPASS_HZ', 120.0), 120.0)
 
 
 class TestFilterHumans(unittest.TestCase):

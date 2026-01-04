@@ -1,6 +1,8 @@
 import logging
 import os
 import time
+import inspect
+from functools import lru_cache
 
 import numpy as np
 import librosa
@@ -13,25 +15,46 @@ from .models import get_model
 log = logging.getLogger(__name__)
 
 MODEL = None
+HIGHPASS_FILTER_ORDER = 4
+_HIGH_PASS_CACHE_SIZE = 32
+
+
+@lru_cache(maxsize=128)
+def _accepts_fallback_for_callable(func):
+    try:
+        sig = inspect.signature(func)
+        return any(param.name == 'fallback' for param in sig.parameters.values())
+    except (TypeError, ValueError):
+        return False
+
+
+def _accepts_fallback(getter):
+    return _accepts_fallback_for_callable(getter)
 
 
 def _get_numeric_setting(conf, key, default=0.0):
-    try:
-        value = conf.get(key, fallback=default)
-    except TypeError:
-        value = conf.get(key, default)
-    except Exception:
-        value = default
+    getter = getattr(conf, 'get', None)
+    if not callable(getter):
+        return default
+    if _accepts_fallback_for_callable(getter):
+        value = getter(key, fallback=default)
+    else:
+        value = getter(key, default)
     try:
         return float(value)
     except (TypeError, ValueError):
         return default
 
 
+@lru_cache(maxsize=_HIGH_PASS_CACHE_SIZE)
+def _get_highpass_sos(order, cutoff_hz, rate):
+    return butter(order, cutoff_hz, btype='highpass', fs=rate, output='sos')
+
+
 def apply_highpass_filter(sig, rate, cutoff_hz):
-    if cutoff_hz <= 0 or cutoff_hz >= rate / 2:
+    if cutoff_hz <= 0 or cutoff_hz > rate / 2:
         return sig
-    sos = butter(4, cutoff_hz, btype='highpass', fs=rate, output='sos')
+    sos = _get_highpass_sos(HIGHPASS_FILTER_ORDER, cutoff_hz, rate)
     return sosfilt(sos, sig)
 
 
@@ -71,7 +94,7 @@ def readAudioData(path, overlap, sample_rate, chunk_duration, highpass_hz=0.0):
     # Open file with librosa (uses ffmpeg or libav)
     sig, rate = librosa.load(path, sr=sample_rate, mono=True, res_type='kaiser_fast')
 
-    if highpass_hz and highpass_hz > 0:
+    if highpass_hz > 0:
         sig = apply_highpass_filter(sig, rate, highpass_hz)
         log.debug('Applied high-pass filter at %s Hz', highpass_hz)
 
