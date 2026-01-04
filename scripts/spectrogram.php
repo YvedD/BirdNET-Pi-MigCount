@@ -408,9 +408,10 @@ function toggleFreqshift(state) {
 function initialize() {
   document.body.querySelector('h1').remove();
   const CVS = document.body.querySelector('canvas');
+  const wrapper = document.querySelector('.spectrogram-wrapper');
   CTX = CVS.getContext('2d');
-  const W = CVS.width = window.innerWidth;
-  const H = CVS.height = window.innerHeight;
+  let W = CVS.width = wrapper ? wrapper.clientWidth : window.innerWidth;
+  let H = CVS.height = window.innerHeight;
 
   ACTX = new AudioContext();
   ANALYSER = ACTX.createAnalyser();
@@ -420,15 +421,15 @@ function initialize() {
   // Handle orientation changes on mobile devices
   window.addEventListener('orientationchange', function() {
     setTimeout(function() {
-      CVS.width = window.innerWidth;
-      CVS.height = window.innerHeight;
+      W = CVS.width = wrapper ? wrapper.clientWidth : window.innerWidth;
+      H = CVS.height = window.innerHeight;
     }, 100);
   });
   
   // Handle window resize
   window.addEventListener('resize', function() {
-    CVS.width = window.innerWidth;
-    CVS.height = window.innerHeight;
+    W = CVS.width = wrapper ? wrapper.clientWidth : window.innerWidth;
+    H = CVS.height = window.innerHeight;
   });
   
   try{
@@ -552,7 +553,16 @@ html, body {
   height: 100%;
 }
 
-canvas {
+.spectrogram-wrapper {
+  width: 100%;
+  max-width: 1200px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.spectrogram-wrapper canvas {
   display: block;
   height: 85%;
   width: 100%;
@@ -667,6 +677,7 @@ h1 {
 }
 </style>
 
+<div class="spectrogram-wrapper">
 <img id="spectrogramimage" style="width:100%;height:100%;display:none" src="/spectrogram.png?nocache=<?php echo $time;?>">
 
 <div class="control-section centered" style="font-size: 0.9em;">
@@ -770,6 +781,7 @@ h1 {
 <audio style="display:none" controls="" crossorigin="anonymous" id='player' preload="none"><source id="playersrc" src="/stream"></audio>
 <h1 id="loading-h1">Loading...</h1>
 <canvas></canvas>
+</div>
 
 <script>
 var rtsp_stream_select = document.getElementById("rtsp_stream_select");
