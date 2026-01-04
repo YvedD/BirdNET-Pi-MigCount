@@ -385,6 +385,7 @@ body.mini-layout {
   --mini-base-height: 850px;
   --mini-scale: min(1, min(100vw / var(--mini-base-width), 100vh / var(--mini-base-height)));
   background: #000;
+  display: flex;
   align-items: flex-start;
   justify-content: center;
   overflow: hidden;
