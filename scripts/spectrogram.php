@@ -192,6 +192,86 @@ const DETECTION_CONFIG = {
   NAME_COLOR: 'rgba(255, 255, 255, 0.9)'
 };
 
+const COLOR_SCHEMES = {
+  purple: {
+    background: 'hsl(280, 100%, 10%)',
+    getColor: function(normalizedValue) {
+      const hue = Math.round((normalizedValue * 120) + 280) % 360;
+      const saturation = 100;
+      const lightness = 10 + (70 * normalizedValue);
+      return `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+    }
+  },
+  blackwhite: {
+    background: '#000000',
+    getColor: function(normalizedValue) {
+      const intensity = Math.round(normalizedValue * 255);
+      return `rgb(${intensity}, ${intensity}, ${intensity})`;
+    }
+  },
+  blackwhite_inverted: {
+    background: '#ffffff',
+    getColor: function(normalizedValue) {
+      const intensity = 255 - Math.round(normalizedValue * 255);
+      return `rgb(${intensity}, ${intensity}, ${intensity})`;
+    }
+  },
+  lava: {
+    background: '#000000',
+    getColor: function(normalizedValue) {
+      const RED_TO_ORANGE_THRESHOLD = 0.33;
+      const ORANGE_TO_YELLOW_THRESHOLD = 0.66;
+      const REMAINING_RANGE = 1 - ORANGE_TO_YELLOW_THRESHOLD;
+      const YELLOW_BRIGHTNESS_FACTOR = 0.22;
+      if (normalizedValue < RED_TO_ORANGE_THRESHOLD) {
+        const r = Math.round((normalizedValue / RED_TO_ORANGE_THRESHOLD) * 255);
+        return `rgb(${r}, 0, 0)`;
+      } else if (normalizedValue < ORANGE_TO_YELLOW_THRESHOLD) {
+        const g = Math.round(((normalizedValue - RED_TO_ORANGE_THRESHOLD) / RED_TO_ORANGE_THRESHOLD) * 200);
+        return `rgb(255, ${g}, 0)`;
+      } else {
+        const intensity = Math.round(((normalizedValue - ORANGE_TO_YELLOW_THRESHOLD) / REMAINING_RANGE) * 255);
+        return `rgb(255, ${200 + Math.round(intensity * YELLOW_BRIGHTNESS_FACTOR)}, ${intensity})`;
+      }
+    }
+  },
+  greenwhite: {
+    background: '#000000',
+    getColor: function(normalizedValue) {
+      const green = Math.round(normalizedValue * 255);
+      const other = Math.round(normalizedValue * normalizedValue * 255);
+      return `rgb(${other}, ${green}, ${other})`;
+    }
+  },
+  greenwhite_inverted: {
+    background: '#ffffff',
+    getColor: function(normalizedValue) {
+      const green = 255 - Math.round(normalizedValue * 255);
+      const other = 255 - Math.round(normalizedValue * normalizedValue * 255);
+      return `rgb(${other}, ${green}, ${other})`;
+    }
+  }
+};
+
+let currentColorSchemeName = 'purple';
+let currentColorScheme = COLOR_SCHEMES[currentColorSchemeName];
+
+function setColorScheme(schemeName) {
+  if (COLOR_SCHEMES[schemeName]) {
+    currentColorSchemeName = schemeName;
+    currentColorScheme = COLOR_SCHEMES[schemeName];
+    if (typeof CTX !== 'undefined' && CTX) {
+      const canvasEl = document.querySelector('.spectrogram-wrapper canvas');
+      if (canvasEl) {
+        CTX.fillStyle = currentColorScheme.background;
+        CTX.fillRect(0, 0, canvasEl.width, canvasEl.height);
+      }
+    }
+  } else {
+    console.warn('Unknown color scheme:', schemeName);
+  }
+}
+
 // Get color for confidence level
 function getConfidenceColor(confidence, threshold) {
   const diff = confidence - threshold;
@@ -246,7 +326,7 @@ function applyText(text, x, y, confidence) {
   // Restore context state
   CTX.restore();
   
-  CTX.fillStyle = 'hsl(280, 100%, 10%)';
+  CTX.fillStyle = currentColorScheme.background;
 }
 
 var add=0;
@@ -465,7 +545,7 @@ function initialize() {
     const LEN = DATA.length;
     const h = (H / LEN + 0.9);
     const x = W - 1;
-    CTX.fillStyle = 'hsl(280, 100%, 10%)';
+    CTX.fillStyle = currentColorScheme.background;
     CTX.fillRect(0, 0, W, H);
 
     // Define frequency lines to draw (in Hz)
@@ -525,6 +605,7 @@ function initialize() {
       window.requestAnimationFrame((timeRes) => loop(timeRes));
       let imgData = CTX.getImageData(1, 0, W - 1, H);
 
+      CTX.fillStyle = currentColorScheme.background;
       CTX.fillRect(0, 0, W, H);
       CTX.putImageData(imgData, 0, 0);
       
@@ -534,11 +615,8 @@ function initialize() {
       ANALYSER.getByteFrequencyData(DATA);
       for (let i = 0; i < LEN; i++) {
         let rat = DATA[i] / 255 ;
-        let hue = Math.round((rat * 120) + 280 % 360);
-        let sat = '100%';
-        let lit = 10 + (70 * rat) + '%';
         CTX.beginPath();
-        CTX.strokeStyle = `hsl(${hue}, ${sat}, ${lit})`;
+        CTX.strokeStyle = currentColorScheme.getColor(rat);
         CTX.moveTo(x, H - (i * h));
         CTX.lineTo(x, H - (i * h + h));
         CTX.stroke();
@@ -560,12 +638,14 @@ html, body {
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center;
 }
 
 .spectrogram-wrapper canvas {
   display: block;
   height: 85%;
   width: 100%;
+  margin: 0 auto;
 }
 
 h1 {
@@ -711,6 +791,18 @@ h1 {
       <input type="checkbox" id="show-frequency-grid" checked />
       Frequency Grid
     </label>
+  </div>
+  &mdash;
+  <div style="display:inline; margin-right: 15px;">
+    <label>Color Scheme:</label>
+    <select id="color-scheme-select">
+      <option value="purple" selected>Purple</option>
+      <option value="blackwhite">Black-White</option>
+      <option value="blackwhite_inverted">Black-White Inverted</option>
+      <option value="lava">Lava</option>
+      <option value="greenwhite">Green-White</option>
+      <option value="greenwhite_inverted">Green-White Inverted</option>
+    </select>
   </div>
 </div>
 
@@ -943,4 +1035,30 @@ var showGrid = true;
 showFrequencyGrid.onclick = function() {
   showGrid = this.checked;
 };
+
+// Color scheme selector
+var colorSchemeSelect = document.getElementById("color-scheme-select");
+var storedColorScheme = null;
+try {
+  storedColorScheme = localStorage.getItem('spectrogramColorScheme');
+} catch (e) {
+  storedColorScheme = null;
+}
+
+if (colorSchemeSelect) {
+  var initialScheme = colorSchemeSelect.value;
+  if (storedColorScheme && COLOR_SCHEMES[storedColorScheme]) {
+    initialScheme = storedColorScheme;
+    colorSchemeSelect.value = storedColorScheme;
+  }
+  setColorScheme(initialScheme);
+  colorSchemeSelect.onchange = function() {
+    setColorScheme(this.value);
+    try {
+      localStorage.setItem('spectrogramColorScheme', this.value);
+    } catch (e) {}
+  };
+} else {
+  setColorScheme(currentColorSchemeName);
+}
 </script>

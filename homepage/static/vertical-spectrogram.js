@@ -54,7 +54,7 @@
     MIN_HUE: 280,
     HUE_RANGE: 120,
     
-    // Color scheme (default: 'purple', options: 'purple', 'blackwhite', 'lava', 'greenwhite')
+    // Color scheme (default: 'purple', options: 'purple', 'blackwhite', 'blackwhite_inverted', 'lava', 'greenwhite', 'greenwhite_inverted')
     COLOR_SCHEME: 'purple',
     
     // Low-cut filter configuration
@@ -120,6 +120,15 @@
         // Green to white color scheme
         const green = Math.round(normalizedValue * 255);
         const other = Math.round(normalizedValue * normalizedValue * 255); // Non-linear for better contrast
+        return `rgb(${other}, ${green}, ${other})`;
+      }
+    },
+    greenwhite_inverted: {
+      background: '#ffffff',
+      getColor: function(normalizedValue) {
+        // Inverted green to white: white background with darker green emphasis as intensity increases
+        const green = 255 - Math.round(normalizedValue * 255);
+        const other = 255 - Math.round(normalizedValue * normalizedValue * 255);
         return `rgb(${other}, ${green}, ${other})`;
       }
     }
@@ -790,7 +799,7 @@
 
   /**
    * Set color scheme
-   * @param {string} schemeName - Color scheme name ('purple', 'blackwhite', 'lava', 'greenwhite')
+   * @param {string} schemeName - Color scheme name ('purple', 'blackwhite', 'blackwhite_inverted', 'lava', 'greenwhite', 'greenwhite_inverted')
    */
   function setColorScheme(schemeName) {
     if (COLOR_SCHEMES[schemeName]) {
