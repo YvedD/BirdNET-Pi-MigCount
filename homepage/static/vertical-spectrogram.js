@@ -47,7 +47,7 @@
     RAPID_DETECTION_INTERVAL_MS: 2000, // Don't show detections within 2 seconds of previous high detection
     
     // Spectrogram configuration
-    FFT_SIZE: 2048,
+    FFT_SIZE: 4096,
     ANALYSER_SMOOTHING: 0.0,
     
     // Color mapping for frequency data
