@@ -146,24 +146,6 @@
   let newestDetectionFile = null;
   let currentDetections = [];
 
-  /**
-   * Build an endpoint URL for spectrogram actions that works from any page
-   * @param {string} query - Query string beginning with '?'
-   * @returns {string} Fully qualified endpoint path
-   */
-  function buildSpectrogramEndpoint(query) {
-    // Optional override for custom hosting scenarios (e.g., reverse proxies or alternate mount points)
-    const override = window.VERTICAL_SPECTROGRAM_ENDPOINT?.trim() ?? '';
-
-    const normalizedOverride = override.length > 0 ? override : null;
-
-    const currentPath = window.location.pathname.split('/').pop();
-    const base = normalizedOverride || (currentPath === 'vertical_spectrogram.php'
-      ? 'vertical_spectrogram.php'
-      : '../scripts/vertical_spectrogram.php');
-    return base + query;
-  }
-
   // =================== Initialization ===================
   
   /**
@@ -430,9 +412,10 @@
     const xhr = new XMLHttpRequest();
     // Call the detection endpoint on the current page (vertical_spectrogram.php)
     // The AJAX handling code is included in vertical_spectrogram.php
-    const endpoint = buildSpectrogramEndpoint(
-      '?ajax_csv=true&newest_file=' + encodeURIComponent(newestDetectionFile || '')
-    );
+    // Use a relative path that works from the views.php iframe context
+    const endpoint = window.location.pathname.includes('vertical_spectrogram') 
+      ? 'vertical_spectrogram.php?ajax_csv=true&newest_file=' + encodeURIComponent(newestDetectionFile || '')
+      : '../scripts/vertical_spectrogram.php?ajax_csv=true&newest_file=' + encodeURIComponent(newestDetectionFile || '');
     xhr.open('GET', endpoint, true);
     
     xhr.onload = function() {
@@ -716,7 +699,10 @@
         
         // Send to server
         const xhr = new XMLHttpRequest();
-        const endpoint = buildSpectrogramEndpoint('?save_screenshot=true');
+        // Use relative path that works from current context
+        const endpoint = window.location.pathname.includes('vertical_spectrogram')
+          ? window.location.pathname + '?save_screenshot=true'
+          : '../scripts/vertical_spectrogram.php?save_screenshot=true';
         xhr.open('POST', endpoint, true);
         
         xhr.onload = function() {
