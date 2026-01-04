@@ -707,13 +707,22 @@ body.mini-layout #loading-message {
       });
 
       audioPlayer.load();
-      audioPlayer.play().catch(function(error) {
-        loadingMessage.textContent = 'Click to start';
-        loadingMessage.style.cursor = 'pointer';
-        loadingMessage.addEventListener('click', function() {
-          audioPlayer.play().catch(() => {});
-        });
-      });
+      function startPlayback(retryDelay = 500) {
+        audioPlayer.muted = true;
+        const playPromise = audioPlayer.play();
+        if (playPromise && typeof playPromise.catch === 'function') {
+          playPromise.then(function() {
+            audioPlayer.muted = false;
+          }).catch(function() {
+            loadingMessage.textContent = 'Loading audio stream...';
+            loadingMessage.style.cursor = 'default';
+            setTimeout(function() {
+              startPlayback(Math.min(retryDelay * 2, 8000));
+            }, retryDelay);
+          });
+        }
+      }
+      startPlayback();
 
       setupControls();
       setupControlButtons();
