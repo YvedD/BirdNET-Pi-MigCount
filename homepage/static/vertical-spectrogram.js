@@ -152,14 +152,15 @@
    * @returns {string} Fully qualified endpoint path
    */
   function buildSpectrogramEndpoint(query) {
-    // Optional override for custom hosting scenarios
+    // Optional override for custom hosting scenarios (e.g., reverse proxies or alternate mount points)
     const override = (typeof window.VERTICAL_SPECTROGRAM_ENDPOINT === 'string') 
       ? window.VERTICAL_SPECTROGRAM_ENDPOINT.trim()
       : '';
 
     const normalizedOverride = override.length > 0 ? override : null;
 
-    const base = normalizedOverride || (window.location.pathname.endsWith('vertical_spectrogram.php')
+    const currentPath = window.location.pathname.split('/').pop();
+    const base = normalizedOverride || (currentPath === 'vertical_spectrogram.php'
       ? 'vertical_spectrogram.php'
       : '../scripts/vertical_spectrogram.php');
     return base + query;
