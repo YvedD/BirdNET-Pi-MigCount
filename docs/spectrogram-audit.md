@@ -5,7 +5,7 @@ Goal: map every place that generates or renders spectrogram PNGs, list the DSP/r
 ## Where spectrogram PNGs come from
 
 1) **Per-detection exports (post-processing)**
-- File: `scripts/utils/reporting.py`, function `spectrogram(...)` (lines ~49–88).
+- File: `scripts/utils/reporting.py`, function `spectrogram(...)` (lines 49–73).
 - Called from `extract_detection(...)` inside `handle_reporting_queue` in `scripts/birdnet_analysis.py` after the model has already produced a detection (so *not* part of inference).
 - Steps:
   - `extract_safe(...)` runs `sox ... trim` to cut the detection + context into a new audio file in `EXTRACTED/By_Date/...`.
@@ -14,8 +14,8 @@ Goal: map every place that generates or renders spectrogram PNGs, list the DSP/r
     Then Pillow draws title/comment text and saves as `<clip>.png` beside the audio.
 
 2) **Live/horizontal viewer PNG (`spectrogram.png`)**
-- File: `scripts/spectrogram.sh` (lines ~1–35) run by `spectrogram_viewer.service`.
-- Watches `~/BirdSongs/StreamData/analyzing_now.txt` (written by `birdnet_analysis.py` before running inference) and regenerates `/EXTRACTED/spectrogram.png` with the same SoX command as above (24 kHz mono, default SoX spectrogram).
+- File: `scripts/spectrogram.sh` (lines ~1–38) run by `spectrogram_viewer.service`.
+- Watches `$HOME/BirdSongs/StreamData/analyzing_now.txt` (written by `birdnet_analysis.py` before running inference) and regenerates `${EXTRACTED}/spectrogram.png` with the same SoX command as above (24 kHz mono, default SoX spectrogram).
 - Displayed in `scripts/spectrogram.php` via `<img id="spectrogramimage">`, refreshed every `RECORDING_LENGTH` seconds (or drawn via canvas in non-legacy mode).
 
 3) **Vertical live spectrogram (canvas, not PNG-based)**
@@ -27,7 +27,7 @@ Goal: map every place that generates or renders spectrogram PNGs, list the DSP/r
 - **Resampling / channel:** `remix 1` (mono, left channel), `rate 24k` → Nyquist 12 kHz; high-frequency content above 12 kHz is discarded.
 - **FFT / window:** SoX defaults (from `sox --help-effect spectrogram`):
   - Window: Hann by default.
-  - Y-size default → one-more-than-power-of-two ≈ 513 bins → `n_fft≈1024`, bin spacing ≈ 23 Hz at 24 kHz.
+  - Y-size default → one-more-than-power-of-two ≈ 513 rows (DC plus 512 positive-frequency intervals); SoX chooses an FFT length to match that (≈2048-point FFT), so with `sr=24000` the bin spacing is ≈ (24 000 / 2) / 512 ≈ 23.44 Hz.
   - Overlap: SoX uses 4× overlap (~75%) internally; hop ≈ 256 samples → ~10.7 ms time step, window length ~42.7 ms (at 24 kHz).
 - **Time axis / resolution:** `-X` default 100 px/s; `-x` default up to 800 px. For a 6 s extract this yields ~600 px wide image; SoX rescales the STFT grid to that width.
 - **Amplitude scaling:** dB by default, dynamic range `-z 120 dB`, top `-Z 0 dBFS`, 249 colour quantisation steps.
@@ -50,8 +50,8 @@ Goal: map every place that generates or renders spectrogram PNGs, list the DSP/r
 1) **Per-detection PNG generator**  
    - Hook: `scripts/utils/reporting.py::spectrogram` (SoX args).  
    - Suggested Raven/Chirpity-style parameters (example to drop in place of the current defaults):  
-     `sox <clip> -n remix 1 rate 48k spectrogram -x 2000 -Y 1025 -X 300 -z 80 -Z -20 -w hann -o <tmp>.png`  
-     Rationale: 48 kHz keeps up to 24 kHz, `n_fft=2048` (Y≈1025) with hop ~2.7 ms at `-X 300` → ~87% overlap, higher DPI (2000×1025) and tighter 80 dB dynamic range with a lifted floor (-20 dBFS top). If log frequency is required, SoX cannot provide it—see Python path below.
+     `sox <clip> -n remix 1 rate 48k spectrogram -x 2000 -Y 1025 -X 300 -z 80 -Z -20 -o <tmp>.png`  
+     Rationale: 48 kHz keeps up to 24 kHz, requesting `-Y 1025` asks SoX for ~1025 vertical bins (it snaps to power-of-two+1, i.e., ~2048-point FFT internally). With ~3.33 ms column spacing at `-X 300`, the hop is ~160 samples, giving ~92.2% overlap against a ~42.67 ms window. The higher DPI (2000x1025) and tighter 80 dB dynamic range with a lifted floor (-20 dBFS top) improve contrast. If log frequency is required, SoX cannot provide it—see Python path below.
 
 2) **Live `/spectrogram.png` service**  
    - Hook: `scripts/spectrogram.sh` SoX call (same flags as above) to keep live viewer consistent with stored detections.
@@ -59,9 +59,9 @@ Goal: map every place that generates or renders spectrogram PNGs, list the DSP/r
 3) **If you need a true log-frequency Raven-style plot** (SoX lacks this)  
    - Replace the SoX call in `reporting.py::spectrogram` with a small matplotlib/librosa renderer:  
      - Load clip (already mono) at 48 kHz.  
-     - `n_fft=2048 or 4096`, `hop_length=256–384` (≈80–90% overlap), `window='hann'`.  
-     - `S = librosa.stft(y, n_fft=n_fft, hop_length=hop_length, window='hann')` → `librosa.power_to_db(|S|**2, top_db=80)`.  
-     - `librosa.display.specshow(..., y_axis='log', sr=48000, cmap='magma')`, figure size e.g. 8×6 inches at 300 dpi (≈2400×1800 px).  
+     - `n_fft=2048 or 4096`, `hop_length=256` (87.5% overlap for 2048) or `hop_length=384` ((2048-384)/2048 = 81.25% overlap), `window='hann'`.  
+     - `S = librosa.stft(y, n_fft=n_fft, hop_length=hop_length, window='hann')`; `S_db = librosa.amplitude_to_db(np.abs(S), ref=np.max, top_db=80)`.  
+     - `librosa.display.specshow(..., y_axis='log', sr=48000, cmap='magma')`, figure size e.g. 8x6 inches at 300 dpi (≈2400x1800 px).  
      - Save PNG directly to `<clip>.png`; keep the title/comment overlay if desired.  
    - The same renderer can be wired into `spectrogram.sh` if a log-frequency live PNG is wanted.
 
