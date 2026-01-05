@@ -38,15 +38,13 @@ def render():
     config = load_config(CONFIG_PATH)
 
     with st.form("spectrogram_params"):
-        st.subheader("Signal & FFT")
-        sample_rate = st.number_input(
-            "Sample rate (Hz)", value=config.sample_rate, min_value=8000, max_value=192000
-        )
-        n_fft = st.number_input("FFT size", value=config.n_fft, min_value=256, step=256)
-        hop_length = st.number_input(
-            "Hop length", value=config.hop_length, min_value=64, step=64
-        )
-        window = st.text_input("Window", value=config.window)
+        st.subheader("Transform & Signal")
+        transform = st.selectbox("Transform", ["mel", "stft", "cqt"], index=["mel", "stft", "cqt"].index(config.transform))
+        sample_rate = st.selectbox("Sample rate (Hz)", [24000, 48000], index=[24000, 48000].index(config.sample_rate))
+        n_fft_options = [2048, 4096, 8192] if sample_rate == 48000 else [2048, 4096]
+        n_fft = st.selectbox("FFT size", n_fft_options, index=n_fft_options.index(config.n_fft if config.n_fft in n_fft_options else n_fft_options[0]))
+        hop_ratio = st.selectbox("Hop ratio (overlap)", [0.0625, 0.125], index=[0.0625, 0.125].index(config.hop_ratio if config.hop_ratio in [0.0625, 0.125] else 0.125))
+        window = st.selectbox("Window", ["hann", "blackman", "hamming", "bartlett"], index=["hann", "blackman", "hamming", "bartlett"].index(config.window if config.window in ["hann", "blackman", "hamming", "bartlett"] else "hann"))
         max_duration = st.number_input(
             "Max duration (seconds, blank for full file)",
             value=float(config.max_duration_sec) if config.max_duration_sec else 0.0,
@@ -57,29 +55,21 @@ def render():
         use_log_frequency = st.checkbox(
             "Logarithmic frequency axis", value=config.use_log_frequency
         )
-        fmin = st.number_input(
-            "Minimum frequency (Hz, 0 for auto)",
-            value=float(config.fmin or 0.0),
-            min_value=0.0,
-            max_value=96000.0,
-        )
-        fmax = st.number_input(
-            "Maximum frequency (Hz, 0 for auto)",
-            value=float(config.fmax or 0.0),
-            min_value=0.0,
-            max_value=96000.0,
-        )
-        top_db = st.number_input("Top dB", value=float(config.top_db), min_value=10.0)
-        dynamic_range = st.number_input(
-            "Dynamic range (dB)", value=float(config.dynamic_range), min_value=10.0
-        )
+        fmin = st.number_input("Minimum frequency (Hz)", value=float(config.fmin or 200.0), min_value=0.0, max_value=96000.0)
+        fmax = st.number_input("Maximum frequency (Hz)", value=float(config.fmax or 10000.0), min_value=0.0, max_value=96000.0)
+        top_db = st.selectbox("Top dB", [35.0, 40.0, 45.0, 50.0], index=[35.0, 40.0, 45.0, 50.0].index(float(config.top_db) if config.top_db in [35.0, 40.0, 45.0, 50.0] else 45.0))
+        dynamic_range = st.number_input("Dynamic range (dB)", value=float(config.dynamic_range), min_value=10.0)
         contrast_percentile = st.number_input(
             "Contrast percentile (0-100, 0 disables percentile clipping)",
             value=float(config.contrast_percentile or 0.0),
             min_value=0.0,
             max_value=100.0,
         )
-        colormap = st.text_input("Colormap", value=config.colormap)
+        colormap = st.selectbox("Colormap", ["magma", "inferno", "gray_r", "plasma"], index=["magma", "inferno", "gray_r", "plasma"].index(config.colormap if config.colormap in ["magma", "inferno", "gray_r", "plasma"] else "magma"))
+        n_mels = st.selectbox("Number of Mel bins", [256, 512, 1024], index=[256, 512, 1024].index(config.n_mels if config.n_mels in [256, 512, 1024] else 512))
+        power = st.number_input("Power (mel)", value=float(config.power), min_value=1.0, max_value=4.0, step=0.5)
+        pcen_enabled = st.checkbox("Enable PCEN", value=config.pcen_enabled)
+        per_freq_norm = st.checkbox("Per-frequency normalization", value=config.per_frequency_normalization)
 
         st.subheader("Output")
         fig_width = st.number_input("Figure width (inches)", value=float(config.fig_width))
@@ -95,14 +85,20 @@ def render():
             updated = config.to_dict()
             updated.update(
                 {
+                    "transform": transform,
                     "sample_rate": int(sample_rate),
                     "n_fft": int(n_fft),
-                    "hop_length": int(hop_length),
+                    "hop_ratio": float(hop_ratio),
+                    "hop_length": int(int(n_fft) * float(hop_ratio)),
                     "window": window,
                     "max_duration_sec": None if max_duration <= 0 else float(max_duration),
                     "use_log_frequency": use_log_frequency,
                     "fmin": None if fmin <= 0 else float(fmin),
                     "fmax": None if fmax <= 0 else float(fmax),
+                    "n_mels": int(n_mels),
+                    "power": float(power),
+                    "pcen_enabled": bool(pcen_enabled),
+                    "per_frequency_normalization": bool(per_freq_norm),
                     "top_db": float(top_db),
                     "dynamic_range": float(dynamic_range),
                     "contrast_percentile": None if contrast_percentile <= 0 else float(contrast_percentile),

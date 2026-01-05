@@ -30,13 +30,19 @@ class SpectrogramConfig:
 
     input_directory: Path
     output_directory: Path
+    transform: str
     sample_rate: int
     n_fft: int
+    hop_ratio: float
     hop_length: int
     window: str
     use_log_frequency: bool
     fmin: Optional[float]
     fmax: Optional[float]
+    n_mels: int
+    power: float
+    pcen_enabled: bool
+    per_frequency_normalization: bool
     ref_power: Union[str, float]
     top_db: float
     dynamic_range: float
@@ -59,13 +65,21 @@ class SpectrogramConfig:
         return cls(
             input_directory=_resolve(data["input_directory"]),
             output_directory=_resolve(data["output_directory"]),
+            transform=str(data.get("transform", "stft")),
             sample_rate=int(data["sample_rate"]),
             n_fft=int(data["n_fft"]),
-            hop_length=int(data["hop_length"]),
+            hop_ratio=float(data.get("hop_ratio", 0.125)),
+            hop_length=int(
+                data.get("hop_length", int(int(data["n_fft"]) * float(data.get("hop_ratio", 0.125))))
+            ),
             window=str(data["window"]),
             use_log_frequency=bool(data["use_log_frequency"]),
             fmin=None if data.get("fmin") in (None, "") else float(data["fmin"]),
             fmax=None if data.get("fmax") in (None, "") else float(data["fmax"]),
+            n_mels=int(data.get("n_mels", 256)),
+            power=float(data.get("power", 2.0)),
+            pcen_enabled=bool(data.get("pcen_enabled", False)),
+            per_frequency_normalization=bool(data.get("per_frequency_normalization", False)),
             ref_power=data.get("ref_power", "max"),
             top_db=float(data["top_db"]),
             dynamic_range=float(data["dynamic_range"]),
@@ -92,13 +106,19 @@ class SpectrogramConfig:
         return {
             "input_directory": _relativize(self.input_directory),
             "output_directory": _relativize(self.output_directory),
+            "transform": self.transform,
             "sample_rate": self.sample_rate,
             "n_fft": self.n_fft,
+            "hop_ratio": self.hop_ratio,
             "hop_length": self.hop_length,
             "window": self.window,
             "use_log_frequency": self.use_log_frequency,
             "fmin": self.fmin,
             "fmax": self.fmax,
+            "n_mels": self.n_mels,
+            "power": self.power,
+            "pcen_enabled": self.pcen_enabled,
+            "per_frequency_normalization": self.per_frequency_normalization,
             "ref_power": self.ref_power,
             "top_db": self.top_db,
             "dynamic_range": self.dynamic_range,
@@ -152,16 +172,67 @@ def generate_spectrogram(wav_path: Path, config: SpectrogramConfig, output_dir: 
     if config.use_log_frequency and (config.fmin is None or config.fmin <= 0):
         config.fmin = 200.0
 
-    stft = librosa.stft(
-        y,
-        n_fft=config.n_fft,
-        hop_length=config.hop_length,
-        window=config.window,
-        center=True,
-    )
-    magnitude = np.abs(stft)
-    ref = _get_ref_power(config.ref_power, magnitude)
-    spectrogram_db = librosa.amplitude_to_db(magnitude, ref=ref, top_db=config.top_db)
+    hop_length = int(config.n_fft * config.hop_ratio)
+    config.hop_length = hop_length
+
+    transform = config.transform.lower()
+    if transform == "mel":
+        mel_spec = librosa.feature.melspectrogram(
+            y=y,
+            sr=sr,
+            n_fft=config.n_fft,
+            hop_length=hop_length,
+            window=config.window,
+            n_mels=config.n_mels,
+            fmin=config.fmin or 0.0,
+            fmax=config.fmax,
+            power=config.power,
+            center=True,
+        )
+        if config.pcen_enabled:
+            mel_spec = librosa.pcen(mel_spec + 1e-6, sr=sr, hop_length=hop_length)
+        spectrogram_db = librosa.power_to_db(mel_spec, top_db=config.top_db)
+        y_axis = "mel"
+    elif transform == "cqt":
+        fmin = config.fmin or 200.0
+        fmax = config.fmax or sr / 2
+        bins_per_octave = 48
+        n_bins = int(np.ceil(np.log2(fmax / fmin) * bins_per_octave))
+        cqt = np.abs(
+            librosa.cqt(
+                y=y,
+                sr=sr,
+                hop_length=hop_length,
+                fmin=fmin,
+                n_bins=n_bins,
+                bins_per_octave=bins_per_octave,
+                window=config.window,
+            )
+        )
+        if config.pcen_enabled:
+            cqt = librosa.pcen(cqt + 1e-6, sr=sr, hop_length=hop_length)
+        spectrogram_db = librosa.amplitude_to_db(cqt, ref=np.max, top_db=config.top_db)
+        y_axis = "cqt_hz"
+    else:
+        stft = librosa.stft(
+            y,
+            n_fft=config.n_fft,
+            hop_length=hop_length,
+            window=config.window,
+            center=True,
+        )
+        magnitude = np.abs(stft)
+        ref = _get_ref_power(config.ref_power, magnitude)
+        power_spec = magnitude**2
+        if config.pcen_enabled:
+            power_spec = librosa.pcen(power_spec + 1e-6, sr=sr, hop_length=hop_length)
+        spectrogram_db = librosa.power_to_db(power_spec, ref=ref, top_db=config.top_db)
+        y_axis = "log" if config.use_log_frequency else "linear"
+
+    if config.per_frequency_normalization:
+        mean = spectrogram_db.mean(axis=1, keepdims=True)
+        std = spectrogram_db.std(axis=1, keepdims=True) + 1e-6
+        spectrogram_db = (spectrogram_db - mean) / std
 
     if config.contrast_percentile is not None:
         vmax = np.percentile(spectrogram_db, config.contrast_percentile)
@@ -176,9 +247,9 @@ def generate_spectrogram(wav_path: Path, config: SpectrogramConfig, output_dir: 
     img = librosa.display.specshow(
         spectrogram_db,
         sr=sr,
-        hop_length=config.hop_length,
+        hop_length=hop_length,
         x_axis="time",
-        y_axis="log" if config.use_log_frequency else "linear",
+        y_axis=y_axis,
         fmin=config.fmin,
         fmax=config.fmax,
         cmap=config.colormap,
@@ -186,6 +257,13 @@ def generate_spectrogram(wav_path: Path, config: SpectrogramConfig, output_dir: 
         vmax=vmax,
         ax=ax,
     )
+    if hasattr(img, "set_interpolation"):
+        img.set_interpolation("nearest")
+    ax.set_aspect("auto")
+    ax.set_ylim(bottom=config.fmin or 0, top=config.fmax or None)
+    ax.set_xlim(left=0)
+    ax.set_ylim(ax.get_ylim()[0], ax.get_ylim()[1])
+    ax.set_ylim(ax.get_ylim())  # ensure origin lower default
     ax.set_title(config.title)
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Frequency (Hz)")
