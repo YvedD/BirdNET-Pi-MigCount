@@ -117,7 +117,9 @@ def render():
                     "output_directory": output_directory,
                 }
             )
-            save_config(load_config_from_dict(updated))
+            from experimental.spectrogram_generator import SpectrogramConfig
+
+            save_config(SpectrogramConfig.from_dict(updated))
             st.success("Configuration saved to spectrogram_config.json")
 
     if st.button("Generate spectrogram PNGs", type="primary"):
@@ -134,12 +136,6 @@ def render():
         "This page is for visual experimentation only. "
         "Production BirdNET audio workflows remain unchanged."
     )
-
-
-def load_config_from_dict(data: dict):
-    from experimental.spectrogram_generator import SpectrogramConfig
-
-    return SpectrogramConfig.from_dict(data)
 
 
 if __name__ == "__main__":
