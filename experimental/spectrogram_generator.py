@@ -123,7 +123,8 @@ def save_config(config: SpectrogramConfig, config_path: Path = CONFIG_PATH) -> N
         json.dump(config.to_dict(), f, indent=2)
 
 
-def _get_ref_power(ref_power: Union[str, float], magnitude: np.ndarray):
+def _get_ref_power(ref_power: Union[str, float], magnitude: np.ndarray) -> float:
+    """Resolve reference power for dB scaling."""
     if isinstance(ref_power, (int, float)):
         return float(ref_power)
     return np.max(magnitude)
