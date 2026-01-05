@@ -1,0 +1,21 @@
+{
+  "input_directory": "tests/testdata",
+  "output_directory": "experimental/output",
+  "sample_rate": 48000,
+  "n_fft": 4096,
+  "hop_length": 512,
+  "window": "hann",
+  "use_log_frequency": true,
+  "fmin": 0,
+  "fmax": 20000,
+  "ref_power": "max",
+  "top_db": 90,
+  "dynamic_range": 80,
+  "contrast_percentile": 99.0,
+  "colormap": "magma",
+  "fig_width": 12.0,
+  "fig_height": 6.0,
+  "dpi": 300,
+  "max_duration_sec": null,
+  "title": "Experimental Spectrogram"
+}
