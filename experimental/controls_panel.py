@@ -22,6 +22,7 @@ from experimental.spectrogram_generator import (  # type: ignore  # noqa: E402
     EXPERIMENT_ROOT,
     SpectrogramConfig,
     generate_for_directory,
+    generate_spectrogram,
     load_config,
     save_config,
 )
@@ -125,6 +126,18 @@ def render():
             st.image(str(outputs[-1]))
         else:
             st.warning("No .wav files found to process.")
+
+    st.subheader("Upload a WAV to generate a PNG")
+    uploaded = st.file_uploader("Select a .wav file", type=["wav"])
+    if uploaded is not None:
+        cfg = load_config(CONFIG_PATH)
+        output_dir = cfg.output_directory
+        output_dir.mkdir(parents=True, exist_ok=True)
+        wav_path = output_dir / f"user_{uploaded.name}"
+        wav_path.write_bytes(uploaded.read())
+        png_path = generate_spectrogram(wav_path, cfg, output_dir)
+        st.success(f"Generated {png_path.name}")
+        st.image(str(png_path))
 
     st.markdown(
         "This page is for visual experimentation only. "
