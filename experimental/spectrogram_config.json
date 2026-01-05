@@ -13,7 +13,7 @@
   "n_mels": 512,
   "power": 2.0,
   "pcen_enabled": false,
-  "per_frequency_normalization": true,
+  "per_frequency_normalization": false,
   "ref_power": "max",
   "top_db": 45,
   "dynamic_range": 60,

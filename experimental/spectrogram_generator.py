@@ -244,6 +244,7 @@ def generate_spectrogram(wav_path: Path, config: SpectrogramConfig, output_dir: 
     fig, ax = plt.subplots(
         figsize=(config.fig_width, config.fig_height), dpi=config.dpi
     )
+    norm = plt.Normalize(vmin=vmin, vmax=vmax)
     img = librosa.display.specshow(
         spectrogram_db,
         sr=sr,
@@ -255,6 +256,7 @@ def generate_spectrogram(wav_path: Path, config: SpectrogramConfig, output_dir: 
         cmap=config.colormap,
         vmin=vmin,
         vmax=vmax,
+        norm=norm,
         ax=ax,
     )
     if hasattr(img, "set_interpolation"):
