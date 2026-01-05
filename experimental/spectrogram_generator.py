@@ -12,7 +12,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Union
 
 import librosa
 import librosa.display  # type: ignore
@@ -37,7 +37,7 @@ class SpectrogramConfig:
     use_log_frequency: bool
     fmin: Optional[float]
     fmax: Optional[float]
-    ref_power: str | float
+    ref_power: Union[str, float]
     top_db: float
     dynamic_range: float
     contrast_percentile: Optional[float]
@@ -123,7 +123,7 @@ def save_config(config: SpectrogramConfig, config_path: Path = CONFIG_PATH) -> N
         json.dump(config.to_dict(), f, indent=2)
 
 
-def _get_ref_power(ref_power: str | float, magnitude: np.ndarray):
+def _get_ref_power(ref_power: Union[str, float], magnitude: np.ndarray):
     if isinstance(ref_power, (int, float)):
         return float(ref_power)
     return np.max(magnitude)

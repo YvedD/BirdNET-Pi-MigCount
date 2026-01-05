@@ -17,6 +17,7 @@ try:
     from experimental.spectrogram_generator import (
         CONFIG_PATH,
         EXPERIMENT_ROOT,
+        SpectrogramConfig,
         generate_for_directory,
         load_config,
         save_config,
@@ -25,6 +26,7 @@ except ImportError:  # pragma: no cover - fallback for packaged execution
     from .spectrogram_generator import (
         CONFIG_PATH,
         EXPERIMENT_ROOT,
+        SpectrogramConfig,
         generate_for_directory,
         load_config,
         save_config,
@@ -117,14 +119,12 @@ def render():
                     "output_directory": output_directory,
                 }
             )
-            from experimental.spectrogram_generator import SpectrogramConfig
-
             save_config(SpectrogramConfig.from_dict(updated))
             st.success("Configuration saved to spectrogram_config.json")
 
     if st.button("Generate spectrogram PNGs", type="primary"):
         cfg = load_config(CONFIG_PATH)
-        outputs = generate_for_directory(cfg.input_directory, Path(output_directory), cfg)
+        outputs = generate_for_directory(cfg.input_directory, cfg.output_directory, cfg)
         if outputs:
             st.success(f"Generated {len(outputs)} spectrogram file(s).")
             st.write("Latest file:")
