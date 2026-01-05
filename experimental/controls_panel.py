@@ -8,29 +8,23 @@ inference or production spectrogram paths.
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
 import streamlit as st
 
-try:
-    # Streamlit run from repo root
-    from experimental.spectrogram_generator import (
-        CONFIG_PATH,
-        EXPERIMENT_ROOT,
-        SpectrogramConfig,
-        generate_for_directory,
-        load_config,
-        save_config,
-    )
-except ImportError:  # pragma: no cover - fallback for packaged execution
-    from .spectrogram_generator import (
-        CONFIG_PATH,
-        EXPERIMENT_ROOT,
-        SpectrogramConfig,
-        generate_for_directory,
-        load_config,
-        save_config,
-    )
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
+
+from experimental.spectrogram_generator import (  # type: ignore  # noqa: E402
+    CONFIG_PATH,
+    EXPERIMENT_ROOT,
+    SpectrogramConfig,
+    generate_for_directory,
+    load_config,
+    save_config,
+)
 
 
 def render():
