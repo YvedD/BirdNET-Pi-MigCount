@@ -124,7 +124,11 @@ def save_config(config: SpectrogramConfig, config_path: Path = CONFIG_PATH) -> N
 
 
 def _get_ref_power(ref_power: Union[str, float], magnitude: np.ndarray) -> float:
-    """Resolve reference power for dB scaling."""
+    """Resolve reference power for dB scaling.
+
+    Numeric values are returned directly; any string (including the default
+    \"max\") uses the maximum magnitude of the current spectrogram.
+    """
     if isinstance(ref_power, (int, float)):
         return float(ref_power)
     return np.max(magnitude)
@@ -135,7 +139,7 @@ def _trim_audio(y: np.ndarray, sr: int, max_duration_sec: Optional[float]) -> np
         return y
     max_samples = int(max_duration_sec * sr)
     if max_samples <= 0:
-        return y
+        return y[:0]
     return y[:max_samples]
 
 
