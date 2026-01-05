@@ -43,8 +43,8 @@ class SpectrogramConfig:
     power: float
     pcen_enabled: bool
     per_frequency_normalization: bool
-    ref_power: Union[str, float]
-    top_db: float
+    ref_power: float
+    top_db: Optional[float]
     dynamic_range: float
     contrast_percentile: Optional[float]
     colormap: str
@@ -80,8 +80,8 @@ class SpectrogramConfig:
             power=float(data.get("power", 2.0)),
             pcen_enabled=bool(data.get("pcen_enabled", False)),
             per_frequency_normalization=bool(data.get("per_frequency_normalization", False)),
-            ref_power=data.get("ref_power", "max"),
-            top_db=float(data["top_db"]),
+            ref_power=float(data.get("ref_power", 1.0)),
+            top_db=None if data.get("top_db") in (None, "") else float(data["top_db"]),
             dynamic_range=float(data["dynamic_range"]),
             contrast_percentile=None
             if data.get("contrast_percentile") in (None, "")
@@ -143,17 +143,6 @@ def save_config(config: SpectrogramConfig, config_path: Path = CONFIG_PATH) -> N
         json.dump(config.to_dict(), f, indent=2)
 
 
-def _get_ref_power(ref_power: Union[str, float], magnitude: np.ndarray) -> float:
-    """Resolve reference power for dB scaling.
-
-    Numeric values are returned directly; any string (including the default
-    \"max\") uses the maximum magnitude of the current spectrogram.
-    """
-    if isinstance(ref_power, (int, float)):
-        return float(ref_power)
-    return np.max(magnitude)
-
-
 def _trim_audio(y: np.ndarray, sr: int, max_duration_sec: Optional[float]) -> np.ndarray:
     if max_duration_sec is None:
         return y
@@ -191,7 +180,9 @@ def generate_spectrogram(wav_path: Path, config: SpectrogramConfig, output_dir: 
         )
         if config.pcen_enabled:
             mel_spec = librosa.pcen(mel_spec + 1e-6, sr=sr, hop_length=hop_length)
-        spectrogram_db = librosa.power_to_db(mel_spec, top_db=config.top_db)
+        spectrogram_db = librosa.power_to_db(
+            mel_spec, ref=config.ref_power, top_db=config.top_db
+        )
         y_axis = "mel"
     elif transform == "cqt":
         fmin = config.fmin or 200.0
@@ -211,7 +202,9 @@ def generate_spectrogram(wav_path: Path, config: SpectrogramConfig, output_dir: 
         )
         if config.pcen_enabled:
             cqt = librosa.pcen(cqt + 1e-6, sr=sr, hop_length=hop_length)
-        spectrogram_db = librosa.amplitude_to_db(cqt, ref=np.max, top_db=config.top_db)
+        spectrogram_db = librosa.amplitude_to_db(
+            cqt, ref=config.ref_power, top_db=config.top_db
+        )
         y_axis = "cqt_hz"
     else:
         stft = librosa.stft(
@@ -222,11 +215,9 @@ def generate_spectrogram(wav_path: Path, config: SpectrogramConfig, output_dir: 
             center=True,
         )
         magnitude = np.abs(stft)
-        ref = _get_ref_power(config.ref_power, magnitude)
-        power_spec = magnitude**2
-        if config.pcen_enabled:
-            power_spec = librosa.pcen(power_spec + 1e-6, sr=sr, hop_length=hop_length)
-        spectrogram_db = librosa.power_to_db(power_spec, ref=ref, top_db=config.top_db)
+        spectrogram_db = librosa.amplitude_to_db(
+            magnitude, ref=config.ref_power, top_db=config.top_db
+        )
         y_axis = "log" if config.use_log_frequency else "linear"
 
     if config.per_frequency_normalization:
@@ -238,13 +229,14 @@ def generate_spectrogram(wav_path: Path, config: SpectrogramConfig, output_dir: 
         vmax = np.percentile(spectrogram_db, config.contrast_percentile)
         vmin = vmax - config.dynamic_range
     else:
-        vmax = spectrogram_db.max()
+        vmax = np.max(spectrogram_db)
         vmin = vmax - config.dynamic_range
+
+    spectrogram_db = np.clip(spectrogram_db, vmin, None)
 
     fig, ax = plt.subplots(
         figsize=(config.fig_width, config.fig_height), dpi=config.dpi
     )
-    norm = plt.Normalize(vmin=vmin, vmax=vmax)
     img = librosa.display.specshow(
         spectrogram_db,
         sr=sr,
@@ -256,7 +248,6 @@ def generate_spectrogram(wav_path: Path, config: SpectrogramConfig, output_dir: 
         cmap=config.colormap,
         vmin=vmin,
         vmax=vmax,
-        norm=norm,
         ax=ax,
     )
     if hasattr(img, "set_interpolation"):

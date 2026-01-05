@@ -57,7 +57,11 @@ def render():
         )
         fmin = st.number_input("Minimum frequency (Hz)", value=float(config.fmin or 200.0), min_value=0.0, max_value=96000.0)
         fmax = st.number_input("Maximum frequency (Hz)", value=float(config.fmax or 10000.0), min_value=0.0, max_value=96000.0)
-        top_db = st.selectbox("Top dB", [35.0, 40.0, 45.0, 50.0], index=[35.0, 40.0, 45.0, 50.0].index(float(config.top_db) if config.top_db in [35.0, 40.0, 45.0, 50.0] else 45.0))
+        top_db_choices = ["None", 35.0, 40.0, 45.0, 50.0]
+        top_db_index = 0 if config.top_db is None else top_db_choices.index(
+            config.top_db if config.top_db in top_db_choices else 45.0
+        )
+        top_db_selected = st.selectbox("Top dB", top_db_choices, index=top_db_index)
         dynamic_range = st.number_input("Dynamic range (dB)", value=float(config.dynamic_range), min_value=10.0)
         contrast_percentile = st.number_input(
             "Contrast percentile (0-100, 0 disables percentile clipping)",
@@ -70,6 +74,7 @@ def render():
         power = st.number_input("Power (mel)", value=float(config.power), min_value=1.0, max_value=4.0, step=0.5)
         pcen_enabled = st.checkbox("Enable PCEN", value=config.pcen_enabled)
         per_freq_norm = st.checkbox("Per-frequency normalization", value=config.per_frequency_normalization)
+        ref_power = st.number_input("Reference power (dB ref)", value=float(config.ref_power), min_value=0.0001, format="%.4f")
 
         st.subheader("Output")
         fig_width = st.number_input("Figure width (inches)", value=float(config.fig_width))
@@ -99,7 +104,8 @@ def render():
                     "power": float(power),
                     "pcen_enabled": bool(pcen_enabled),
                     "per_frequency_normalization": bool(per_freq_norm),
-                    "top_db": float(top_db),
+                    "ref_power": float(ref_power),
+                    "top_db": None if top_db_selected == "None" else float(top_db_selected),
                     "dynamic_range": float(dynamic_range),
                     "contrast_percentile": None if contrast_percentile <= 0 else float(contrast_percentile),
                     "colormap": colormap,
