@@ -149,6 +149,9 @@ def generate_spectrogram(wav_path: Path, config: SpectrogramConfig, output_dir: 
     y, sr = librosa.load(wav_path, sr=config.sample_rate, mono=True)
     y = _trim_audio(y, sr, config.max_duration_sec)
 
+    if config.use_log_frequency and (config.fmin is None or config.fmin <= 0):
+        config.fmin = 200.0
+
     stft = librosa.stft(
         y,
         n_fft=config.n_fft,
@@ -164,8 +167,8 @@ def generate_spectrogram(wav_path: Path, config: SpectrogramConfig, output_dir: 
         vmax = np.percentile(spectrogram_db, config.contrast_percentile)
         vmin = vmax - config.dynamic_range
     else:
-        vmax = None
-        vmin = spectrogram_db.max() - config.dynamic_range
+        vmax = spectrogram_db.max()
+        vmin = vmax - config.dynamic_range
 
     fig, ax = plt.subplots(
         figsize=(config.fig_width, config.fig_height), dpi=config.dpi
