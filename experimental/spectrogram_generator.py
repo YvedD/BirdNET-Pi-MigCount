@@ -161,6 +161,12 @@ def generate_spectrogram(wav_path: Path, config: SpectrogramConfig, output_dir: 
     if config.use_log_frequency and (config.fmin is None or config.fmin <= 0):
         config.fmin = 200.0
 
+    nyquist = sr / 2.0
+    effective_fmax = min(config.fmax or nyquist, nyquist - 1.0)
+    effective_fmin = config.fmin or 0.0
+    if effective_fmax <= effective_fmin:
+        effective_fmin = max(0.0, effective_fmax * 0.5)
+
     hop_length = int(config.n_fft * config.hop_ratio)
     config.hop_length = hop_length
 
@@ -173,8 +179,8 @@ def generate_spectrogram(wav_path: Path, config: SpectrogramConfig, output_dir: 
             hop_length=hop_length,
             window=config.window,
             n_mels=config.n_mels,
-            fmin=config.fmin or 0.0,
-            fmax=config.fmax,
+            fmin=effective_fmin,
+            fmax=effective_fmax,
             power=config.power,
             center=True,
         )
@@ -185,8 +191,8 @@ def generate_spectrogram(wav_path: Path, config: SpectrogramConfig, output_dir: 
         )
         y_axis = "mel"
     elif transform == "cqt":
-        fmin = config.fmin or 200.0
-        fmax = config.fmax or sr / 2
+        fmin = effective_fmin or 200.0
+        fmax = effective_fmax
         bins_per_octave = 48
         n_bins = int(np.ceil(np.log2(fmax / fmin) * bins_per_octave))
         cqt = np.abs(
@@ -243,8 +249,8 @@ def generate_spectrogram(wav_path: Path, config: SpectrogramConfig, output_dir: 
         hop_length=hop_length,
         x_axis="time",
         y_axis=y_axis,
-        fmin=config.fmin,
-        fmax=config.fmax,
+        fmin=effective_fmin,
+        fmax=effective_fmax,
         cmap=config.colormap,
         vmin=vmin,
         vmax=vmax,
