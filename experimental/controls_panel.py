@@ -1,5 +1,5 @@
 from __future__ import annotations
-"""
+APP_DESCRIPTION = """
 Streamlit UI for experimenting with spectrogram parameters and syllable segmentation.
 
 Features:
@@ -17,6 +17,7 @@ Features:
 All changes are saved to experimental/spectrogram_config.json
 and isolated from BirdNET production pipeline.
 """
+__doc__ = APP_DESCRIPTION
 
 import sys
 from pathlib import Path
@@ -61,8 +62,6 @@ def _init_state(cfg: SpectrogramConfig) -> None:
         st.session_state.base_config = base_config
     st.session_state.setdefault("working_config", st.session_state.base_config.copy())
     st.session_state["working_config"].setdefault("colormap", base_config["colormap"])
-    for key, value in st.session_state["working_config"].items():
-        st.session_state.setdefault(key, value)
     st.session_state.setdefault("last_preview_config", {})
     st.session_state.setdefault("force_refresh", True)
 
@@ -88,6 +87,8 @@ def render():
         st.session_state.last_preview_config = {}
 
     working_cfg = st.session_state["working_config"]
+    def current_value(key: str, default):
+        return st.session_state.get(key, working_cfg.get(key, default))
 
     controls_col, preview_col = st.columns([1.05, 0.95])
 
@@ -104,51 +105,57 @@ def render():
 
         with settings_left:
             st.subheader("Audio & Transform")
+            transform_default = current_value("transform", working_cfg.get("transform", "stft"))
             transform = st.selectbox(
                 "Transform type",
                 ["mel", "stft", "cqt"],
-                index=["mel", "stft", "cqt"].index(str(st.session_state.transform)),
+                index=["mel", "stft", "cqt"].index(str(transform_default)),
                 key="transform",
                 help="Select type of spectrogram. 'mel' emphasizes perceptual frequencies, 'cqt' is logarithmic per octave, 'stft' is linear."
             )
+            sample_rate_default = int(current_value("sample_rate", working_cfg.get("sample_rate", 48000)))
             sample_rate = st.selectbox(
                 "Sample rate (Hz)",
                 [24000, 48000],
-                index=[24000, 48000].index(int(st.session_state.sample_rate)),
+                index=[24000, 48000].index(sample_rate_default),
                 key="sample_rate",
                 help="Audio sampling rate. Higher = better frequency resolution at high frequencies, but larger files."
             )
             n_fft_options = [2048, 4096, 8192] if sample_rate == 48000 else [2048, 4096]
-            if int(st.session_state.n_fft) not in n_fft_options:
-                st.session_state.n_fft = n_fft_options[0]
+            n_fft_default = int(current_value("n_fft", working_cfg.get("n_fft", n_fft_options[0])))
+            if n_fft_default not in n_fft_options:
+                n_fft_default = n_fft_options[0]
             n_fft = st.selectbox(
                 "FFT size",
                 n_fft_options,
-                index=n_fft_options.index(int(st.session_state.n_fft)),
+                index=n_fft_options.index(n_fft_default),
                 key="n_fft",
                 help="Number of FFT points. Larger = better frequency resolution, lower temporal resolution."
             )
+            hop_ratio_default = float(current_value("hop_ratio", working_cfg.get("hop_ratio", 0.125)))
             hop_ratio = st.slider(
                 "Hop ratio (fraction of FFT size)",
                 0.05,
                 0.25,
-                float(st.session_state.hop_ratio),
+                hop_ratio_default,
                 step=0.01,
                 key="hop_ratio",
                 help="Overlap between consecutive FFT windows. Smaller = smoother spectrogram over time."
             )
+            window_default = str(current_value("window", working_cfg.get("window", "hann")))
             window = st.selectbox(
                 "Window function",
                 ["hann", "hamming", "blackman", "bartlett"],
-                index=["hann", "hamming", "blackman", "bartlett"].index(str(st.session_state.window)),
+                index=["hann", "hamming", "blackman", "bartlett"].index(window_default),
                 key="window",
                 help="Windowing function for FFT. Affects spectral leakage and sharpness of frequency peaks."
             )
 
             st.subheader("Frequency & Scaling")
+            use_log_frequency_default = bool(current_value("use_log_frequency", working_cfg.get("use_log_frequency", True)))
             use_log_frequency = st.checkbox(
                 "Logarithmic frequency axis",
-                value=bool(st.session_state.use_log_frequency),
+                value=use_log_frequency_default,
                 key="use_log_frequency",
                 help="Display y-axis on logarithmic scale. Useful for bird sounds with wide frequency range."
             )
@@ -156,7 +163,7 @@ def render():
                 "Min frequency (Hz)",
                 min_value=0.0,
                 max_value=96000.0,
-                value=float(st.session_state.get("fmin") or 200.0),
+                value=float(current_value("fmin", working_cfg.get("fmin") or 200.0)),
                 key="fmin",
                 help="Lowest frequency to display. Frequencies below this are ignored."
             )
@@ -164,11 +171,11 @@ def render():
                 "Max frequency (Hz)",
                 min_value=0.0,
                 max_value=96000.0,
-                value=float(st.session_state.get("fmax") or 12000.0),
+                value=float(current_value("fmax", working_cfg.get("fmax") or 12000.0)),
                 key="fmax",
                 help="Highest frequency to display."
             )
-            mel_default = st.session_state.get("n_mels", working_cfg.get("n_mels", MEL_OPTIONS[0]))
+            mel_default = current_value("n_mels", working_cfg.get("n_mels", MEL_OPTIONS[0]))
             if int(mel_default) not in MEL_OPTIONS:
                 mel_default = MEL_OPTIONS[0]
                 st.session_state.n_mels = mel_default
@@ -181,7 +188,7 @@ def render():
             )
             power = st.number_input(
                 "Spectrogram power",
-                value=float(st.session_state.power),
+                value=float(current_value("power", working_cfg.get("power", 2.0))),
                 min_value=1.0,
                 max_value=4.0,
                 key="power",
@@ -189,26 +196,26 @@ def render():
             )
             pcen_enabled = st.checkbox(
                 "Enable PCEN (per-channel energy normalization)",
-                value=bool(st.session_state.pcen_enabled),
+                value=bool(current_value("pcen_enabled", working_cfg.get("pcen_enabled", False))),
                 key="pcen_enabled",
                 help="Enhances weak signals and suppresses constant background noise."
             )
             per_freq_norm = st.checkbox(
                 "Per-frequency normalization",
-                value=bool(st.session_state.per_frequency_normalization),
+                value=bool(current_value("per_frequency_normalization", working_cfg.get("per_frequency_normalization", False))),
                 key="per_frequency_normalization",
                 help="Normalize each frequency band independently. Makes spectrogram contrast more uniform."
             )
             ref_power = st.number_input(
                 "Reference power (dB)",
-                value=float(st.session_state.ref_power),
+                value=float(current_value("ref_power", working_cfg.get("ref_power", 1.0))),
                 min_value=0.0001,
                 key="ref_power",
                 help="Reference value for amplitude-to-dB conversion."
             )
             top_db = st.number_input(
                 "Top dB (clipping)",
-                value=float(st.session_state.get("top_db") or 45.0),
+                value=float(current_value("top_db", working_cfg.get("top_db") or 45.0)),
                 min_value=1.0,
                 max_value=120.0,
                 key="top_db",
@@ -216,7 +223,7 @@ def render():
             )
             dynamic_range = st.number_input(
                 "Dynamic range (dB)",
-                value=float(st.session_state.dynamic_range),
+                value=float(current_value("dynamic_range", working_cfg.get("dynamic_range", 80.0))),
                 min_value=10.0,
                 key="dynamic_range",
                 help="Contrast between max and min dB displayed in image."
@@ -226,7 +233,7 @@ def render():
             st.subheader("Segmentation (syllables)")
             rms_frame_length = st.number_input(
                 "RMS frame length (samples)",
-                value=int(st.session_state.rms_frame_length),
+                value=int(current_value("rms_frame_length", working_cfg.get("rms_frame_length", 1024))),
                 key="rms_frame_length",
                 help="Number of samples per RMS calculation. Larger = smoother energy envelope."
             )
@@ -234,14 +241,14 @@ def render():
                 "RMS threshold (0-1)",
                 0.0,
                 1.0,
-                float(st.session_state.rms_threshold),
+                float(current_value("rms_threshold", working_cfg.get("rms_threshold", 0.2))),
                 step=0.01,
                 key="rms_threshold",
                 help="Minimum normalized RMS to consider a segment. Lower = more segments."
             )
             min_segment_duration = st.number_input(
                 "Min segment duration (s)",
-                value=float(st.session_state.min_segment_duration),
+                value=float(current_value("min_segment_duration", working_cfg.get("min_segment_duration", 0.05))),
                 min_value=0.01,
                 max_value=10.0,
                 key="min_segment_duration",
@@ -249,7 +256,7 @@ def render():
             )
             min_silence_duration = st.number_input(
                 "Min silence to separate (s)",
-                value=float(st.session_state.min_silence_duration),
+                value=float(current_value("min_silence_duration", working_cfg.get("min_silence_duration", 0.05))),
                 min_value=0.01,
                 max_value=10.0,
                 key="min_silence_duration",
@@ -259,14 +266,14 @@ def render():
                 "Sigmoid steepness (soft-threshold)",
                 1.0,
                 50.0,
-                float(st.session_state.sigmoid_k),
+                float(current_value("sigmoid_k", working_cfg.get("sigmoid_k", 20.0))),
                 step=1.0,
                 key="sigmoid_k",
                 help="Softens edges of RMS threshold using sigmoid. Higher = sharper cut, lower = smoother detection."
             )
             overlay_segments = st.checkbox(
                 "Overlay segments on spectrogram",
-                value=bool(st.session_state.overlay_segments),
+                value=bool(current_value("overlay_segments", working_cfg.get("overlay_segments", False))),
                 key="overlay_segments",
                 help="Draw detected segment boundaries directly on the spectrogram for visual inspection."
             )
@@ -282,12 +289,12 @@ def render():
                 index=COLORMAP_OPTIONS.index(current_colormap_value),
                 key="colormap",
             )
-            fig_width = st.number_input("Figure width (inches)", value=float(st.session_state.fig_width), key="fig_width")
-            fig_height = st.number_input("Figure height (inches)", value=float(st.session_state.fig_height), key="fig_height")
-            dpi = st.number_input("DPI", value=int(st.session_state.dpi), min_value=72, key="dpi")
-            title = st.text_input("Title", value=str(st.session_state.title), key="title")
-            output_dir = st.text_input("Output directory", value=str(st.session_state.output_directory), key="output_directory")
-            segment_dir = st.text_input("Segment directory (WAVs)", value=str(st.session_state.segment_directory), key="segment_directory")
+            fig_width = st.number_input("Figure width (inches)", value=float(current_value("fig_width", working_cfg.get("fig_width", 12.0))), key="fig_width")
+            fig_height = st.number_input("Figure height (inches)", value=float(current_value("fig_height", working_cfg.get("fig_height", 6.0))), key="fig_height")
+            dpi = st.number_input("DPI", value=int(current_value("dpi", working_cfg.get("dpi", 300))), min_value=72, key="dpi")
+            title = st.text_input("Title", value=str(current_value("title", working_cfg.get("title", ""))), key="title")
+            output_dir = st.text_input("Output directory", value=str(current_value("output_directory", working_cfg.get("output_directory", ""))), key="output_directory")
+            segment_dir = st.text_input("Segment directory (WAVs)", value=str(current_value("segment_directory", working_cfg.get("segment_directory", ""))), key="segment_directory")
 
         hop_length_calc = int(n_fft * hop_ratio)
         st.session_state.hop_length = hop_length_calc
@@ -404,7 +411,7 @@ def render():
                 cached_preview = preview_path
 
             if cached_preview and Path(cached_preview).exists():
-                st.image(str(cached_preview), caption=f"Preview: {Path(cached_preview).name}", use_column_width=True)
+                st.image(str(cached_preview), caption=f"Preview: {Path(cached_preview).name}", use_container_width=True)
             else:
                 st.info("Plaats een WAV in de input map of upload er een om een live preview te zien.")
 

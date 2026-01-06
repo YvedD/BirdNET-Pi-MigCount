@@ -18,6 +18,7 @@ from typing import Dict, List, Optional, Tuple
 
 import librosa
 import librosa.display  # type: ignore
+import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import colors as mcolors
 import numpy as np
@@ -40,9 +41,8 @@ def _lighten_colormap(name: str, floor: float = 0.2) -> mcolors.Colormap:
     samples = np.linspace(floor, 1.0, base.N)
     light_cmap = mcolors.LinearSegmentedColormap.from_list(f"{name}_soft", base(samples))
     try:
-        plt.register_cmap(f"{name}_soft", light_cmap)
+        matplotlib.colormaps.register(light_cmap)
     except ValueError:
-        # Already registered
         pass
     return light_cmap
 
