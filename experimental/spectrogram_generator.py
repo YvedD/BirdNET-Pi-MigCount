@@ -376,7 +376,7 @@ def generate_spectrogram(
         except Image.DecompressionBombError:
             _cleanup_paths(tmp_path, output_path)
             raise
-        except (UnidentifiedImageError, OSError) as retry_exc:
+        except (UnidentifiedImageError, OSError, SyntaxError) as retry_exc:
             raise RuntimeError(
                 f"Failed to create valid PNG at {output_path}; initial error: {exc}; retry error: {retry_exc}"
             ) from retry_exc
