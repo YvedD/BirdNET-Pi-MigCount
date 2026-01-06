@@ -347,20 +347,26 @@ def generate_spectrogram(
     output_path = output_dir / f"{wav_path.stem}_spectrogram.png"
     fig.savefig(output_path, dpi=cfg.dpi, bbox_inches="tight")
 
+    if output_path.stat().st_size == 0:
+        raise UnidentifiedImageError(f"Empty PNG written to {output_path}")
+
     # Validate PNG to avoid truncated/corrupted files
     try:
         with Image.open(output_path) as png_check:
             png_check.verify()
     except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as exc:
+        tmp_path = output_path.with_suffix(".tmp.png")
         with io.BytesIO() as buffer:
             fig.savefig(buffer, format="png", dpi=cfg.dpi, bbox_inches="tight")
             buffer.seek(0)
-            output_path.write_bytes(buffer.read())
+            tmp_path.write_bytes(buffer.read())
         try:
-            with Image.open(output_path) as png_check:
+            with Image.open(tmp_path) as png_check:
                 png_check.verify()
         except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as retry_exc:
             raise RuntimeError(f"Failed to create valid PNG at {output_path}. Initial error: {exc}") from retry_exc
+        else:
+            tmp_path.replace(output_path)
 
     plt.close(fig)
     return output_path
