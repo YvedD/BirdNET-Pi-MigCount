@@ -1,3 +1,4 @@
+
 """
 Enhanced spectrogram generator with RMS-based segment detection and sigmoid soft-thresholding.
 
