@@ -367,7 +367,7 @@ def generate_spectrogram(
     except Image.DecompressionBombError:
         _cleanup_paths(output_path)
         raise
-    except (UnidentifiedImageError, OSError) as exc:
+    except (UnidentifiedImageError, OSError, SyntaxError) as exc:
         tmp_path = output_path.with_suffix(".tmp.png")
         try:
             _save_png(fig, tmp_path, cfg.dpi)
