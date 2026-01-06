@@ -22,10 +22,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import wavfile
 from matplotlib.patches import Rectangle
+from PIL import Image, UnidentifiedImageError
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = EXPERIMENT_ROOT.parent
 CONFIG_PATH = EXPERIMENT_ROOT / "spectrogram_config.json"
+
+
+def _save_png(fig_obj: plt.Figure, path: Path, dpi: int) -> None:
+    fig_obj.savefig(path, dpi=dpi, bbox_inches="tight", format="png")
+
+
+def _cleanup_paths(*paths: Path) -> None:
+    for path in paths:
+        path.unlink(missing_ok=True)
 
 
 @dataclass
@@ -163,7 +173,10 @@ class SpectrogramConfig:
 def load_config(config_path: Path = CONFIG_PATH) -> SpectrogramConfig:
     with config_path.open("r", encoding="utf-8") as f:
         raw = json.load(f)
-    return SpectrogramConfig.from_dict(raw)
+    cfg = SpectrogramConfig.from_dict(raw)
+    cfg.input_directory.mkdir(parents=True, exist_ok=True)
+    cfg.output_directory.mkdir(parents=True, exist_ok=True)
+    return cfg
 
 
 def save_config(config: SpectrogramConfig, config_path: Path = CONFIG_PATH) -> None:
@@ -340,7 +353,44 @@ def generate_spectrogram(
 
     fig.tight_layout()
     output_path = output_dir / f"{wav_path.stem}_spectrogram.png"
-    fig.savefig(output_path, dpi=cfg.dpi, bbox_inches="tight")
+    _save_png(fig, output_path, cfg.dpi)
+
+    if not output_path.exists():
+        raise RuntimeError(f"No PNG written to {output_path}")
+    if output_path.stat().st_size == 0:
+        raise RuntimeError(f"Empty PNG written to {output_path}")
+
+    # Validate PNG to avoid truncated/corrupted files
+    try:
+        with Image.open(output_path) as png_check:
+            png_check.verify()
+    except Image.DecompressionBombError:
+        _cleanup_paths(output_path)
+        raise
+    except (UnidentifiedImageError, OSError) as exc:
+        tmp_path = output_path.with_suffix(".tmp.png")
+        try:
+            _save_png(fig, tmp_path, cfg.dpi)
+            with Image.open(tmp_path) as png_check:
+                png_check.verify()
+        except Image.DecompressionBombError:
+            _cleanup_paths(tmp_path, output_path)
+            raise
+        except (UnidentifiedImageError, OSError) as retry_exc:
+            raise RuntimeError(
+                f"Failed to create valid PNG at {output_path}; initial error: {exc}; retry error: {retry_exc}"
+            ) from retry_exc
+        else:
+            try:
+                # Use replace to atomically swap the temporary file into place where supported;
+                # any platform limitations surface as an OSError handled below.
+                tmp_path.replace(output_path)
+            except OSError as replace_exc:
+                raise RuntimeError(f"Failed to move temporary PNG to {output_path}") from replace_exc
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink()
+
     plt.close(fig)
     return output_path
 
