@@ -82,7 +82,7 @@ def test_log_spectrogram_clamps_low_frequency(monkeypatch, tmp_path):
 
     def tracking_set_ylim(self, bottom=None, top=None, *args, **kwargs):
         ylim_calls.append((bottom, top))
-        return real_set_ylim(self, bottom=bottom, top=top, *args, **kwargs)
+        return real_set_ylim(self, *args, bottom=bottom, top=top, **kwargs)
 
     monkeypatch.setattr(matplotlib.axes.Axes, "set_ylim", tracking_set_ylim)
 
