@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+
 """
 Streamlit UI for experimenting with spectrogram parameters and syllable segmentation.
 
