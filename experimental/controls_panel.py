@@ -49,6 +49,7 @@ def render():
     cfg = load_config(CONFIG_PATH)
 
     # --- FORM: Parameters ---
+    overlay_segments = cfg.overlay_segments
     with st.form("params_form"):
         st.subheader("Audio & Transform")
         transform = st.selectbox(
@@ -243,24 +244,24 @@ def render():
 
     # --- Generate all WAVs ---
     st.subheader("Generate PNG / Segments for all WAVs")
-    if st.button("Process all WAVs in input directory"):
+    if st.button("Genereer PNGs"):
         cfg = load_config(CONFIG_PATH)
         for wav in cfg.input_directory.glob("*.wav"):
             generate_spectrogram(
                 wav,
                 cfg,
                 overlay_segments=overlay_segments,
-                export_segments=True
+                export_segments_flag=True
             )
         st.success(f"Processing complete! Segments exported to WAVs in {cfg.segment_directory}")
 
     # --- Single WAV uploader ---
     st.subheader("Upload a WAV to generate PNG & segments")
-    uploaded = st.file_uploader("Select a .wav file", type=["wav"])
+    uploaded = st.file_uploader("Open WAV bestanden", type=["wav"])
     if uploaded is not None:
         cfg = load_config(CONFIG_PATH)
         cfg.output_directory.mkdir(parents=True, exist_ok=True)
-        cfg.segment_directory.mkdir(parents=True, exist_ok=True)
+        Path(cfg.segment_directory).mkdir(parents=True, exist_ok=True)
         wav_path = cfg.output_directory / f"user_{uploaded.name}"
         wav_path.write_bytes(uploaded.read())
 
@@ -269,7 +270,7 @@ def render():
             wav_path,
             cfg,
             overlay_segments=overlay_segments,
-            export_segments=True
+            export_segments_flag=True
         )
         st.success(f"Generated {png_path.name}")
         st.image(str(png_path))
