@@ -12,6 +12,8 @@ Features:
 - Sigmoid soft-threshold for smoothing segment edges
 - Optional overlay of segments on the spectrogram image
 - Visualize results directly in the UI
+- Upload single WAVs for testing
+- Save configuration for reproducible experiments
 
 All changes are saved to experimental/spectrogram_config.json
 and isolated from BirdNET production pipeline.
@@ -35,6 +37,7 @@ from experimental.spectrogram_generator import (
     save_config,
 )
 
+
 def render():
     st.title("Experimental Spectrogram Controls")
     st.caption(
@@ -42,9 +45,10 @@ def render():
         "Segmented WAVs for detected syllables can be exported."
     )
 
-    # Load current config
+    # Load current configuration
     cfg = load_config(CONFIG_PATH)
 
+    # --- FORM: Parameters ---
     with st.form("params_form"):
         st.subheader("Audio & Transform")
         transform = st.selectbox(
@@ -200,7 +204,8 @@ def render():
         output_dir = st.text_input("Output directory", value=str(cfg.output_directory))
         segment_dir = st.text_input("Segment directory (WAVs)", value=str(cfg.segment_directory))
 
-        submitted = st.form_submit_button("Save config")
+        # --- Save / Submit button ---
+        submitted = st.form_submit_button("Save configuration")
         if submitted:
             updated = cfg.to_dict()
             updated.update({
@@ -236,17 +241,38 @@ def render():
             save_config(SpectrogramConfig.from_dict(updated))
             st.success("Configuration saved!")
 
-    st.subheader("Generate PNG / Segments")
+    # --- Generate all WAVs ---
+    st.subheader("Generate PNG / Segments for all WAVs")
     if st.button("Process all WAVs in input directory"):
         cfg = load_config(CONFIG_PATH)
         for wav in cfg.input_directory.glob("*.wav"):
             generate_spectrogram(
                 wav,
                 cfg,
-                overlay_segments=overlay_segments,  # Draw segments on spectrogram
-                export_segments=True               # Export each segment as separate WAV
+                overlay_segments=overlay_segments,
+                export_segments=True
             )
         st.success(f"Processing complete! Segments exported to WAVs in {cfg.segment_directory}")
+
+    # --- Single WAV uploader ---
+    st.subheader("Upload a WAV to generate PNG & segments")
+    uploaded = st.file_uploader("Select a .wav file", type=["wav"])
+    if uploaded is not None:
+        cfg = load_config(CONFIG_PATH)
+        cfg.output_directory.mkdir(parents=True, exist_ok=True)
+        cfg.segment_directory.mkdir(parents=True, exist_ok=True)
+        wav_path = cfg.output_directory / f"user_{uploaded.name}"
+        wav_path.write_bytes(uploaded.read())
+
+        # Generate spectrogram image
+        png_path = generate_spectrogram(
+            wav_path,
+            cfg,
+            overlay_segments=overlay_segments,
+            export_segments=True
+        )
+        st.success(f"Generated {png_path.name}")
+        st.image(str(png_path))
 
 if __name__ == "__main__":
     render()
