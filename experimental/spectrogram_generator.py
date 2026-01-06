@@ -368,6 +368,8 @@ def generate_spectrogram(
     img = librosa.display.specshow(S_db, sr=sr, hop_length=hop_length, x_axis="time", y_axis=y_axis, fmin=effective_fmin, fmax=effective_fmax, cmap=cmap_obj, vmin=vmin, vmax=vmax, ax=ax)
     if hasattr(img, "set_interpolation"):
         img.set_interpolation("nearest")
+    if effective_fmin > 0.0 or effective_fmax < nyquist:
+        ax.set_ylim(bottom=effective_fmin if effective_fmin > 0.0 else None, top=effective_fmax)
     ax.set_aspect("auto")
     ax.set_title(cfg.title)
     ax.set_xlabel("Time (s)")

@@ -163,7 +163,7 @@ def render():
                 "Min frequency (Hz)",
                 min_value=0.0,
                 max_value=96000.0,
-                value=float(current_value("fmin", working_cfg.get("fmin") or 200.0)),
+                value=float(current_value("fmin", working_cfg.get("fmin") or 1000.0)),
                 key="fmin",
                 help="Lowest frequency to display. Frequencies below this are ignored."
             )

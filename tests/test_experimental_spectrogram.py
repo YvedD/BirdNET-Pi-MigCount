@@ -1,4 +1,5 @@
 from pathlib import Path
+from numbers import Real
 
 import experimental.spectrogram_generator as spectrogram_generator
 from experimental.spectrogram_generator import (
@@ -6,6 +7,7 @@ from experimental.spectrogram_generator import (
     generate_spectrogram,
 )
 from PIL import Image
+import matplotlib.axes
 
 
 def test_config_paths_are_isolated():
@@ -64,3 +66,27 @@ def test_generate_spectrogram_recovers_from_corrupt_png(monkeypatch, tmp_path):
     assert output.exists()
     with Image.open(output) as img:
         img.verify()
+
+
+def test_log_spectrogram_clamps_low_frequency(monkeypatch, tmp_path):
+    config = load_config()
+    config.transform = "stft"
+    config.use_log_frequency = True
+    config.fmin = 1000.0
+    config.fmax = 8000.0
+    config.max_duration_sec = 0.2
+    wav_path = Path(__file__).parent / "testdata" / "Pica pica_30s.wav"
+
+    ylim_calls = []
+    real_set_ylim = matplotlib.axes.Axes.set_ylim
+
+    def tracking_set_ylim(self, bottom=None, top=None, *args, **kwargs):
+        ylim_calls.append((bottom, top))
+        return real_set_ylim(self, bottom=bottom, top=top, *args, **kwargs)
+
+    monkeypatch.setattr(matplotlib.axes.Axes, "set_ylim", tracking_set_ylim)
+
+    generate_spectrogram(wav_path, config, overlay_segments=False, output_dir=tmp_path)
+
+    assert any(isinstance(bottom, Real) and bottom >= config.fmin for bottom, _ in ylim_calls)
+    assert any(isinstance(top, Real) and top <= config.fmax for _, top in ylim_calls)
