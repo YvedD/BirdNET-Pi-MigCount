@@ -23,7 +23,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.io import wavfile
 from matplotlib.patches import Rectangle
-from PIL import Image
+from PIL import Image, UnidentifiedImageError
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = EXPERIMENT_ROOT.parent
@@ -351,13 +351,16 @@ def generate_spectrogram(
     try:
         with Image.open(output_path) as png_check:
             png_check.verify()
-    except Exception:
+    except (UnidentifiedImageError, OSError, SyntaxError) as exc:
         buffer = io.BytesIO()
         fig.savefig(buffer, format="png", dpi=cfg.dpi, bbox_inches="tight")
         buffer.seek(0)
         output_path.write_bytes(buffer.read())
-        with Image.open(output_path) as png_check:
-            png_check.verify()
+        try:
+            with Image.open(output_path) as png_check:
+                png_check.verify()
+        except (UnidentifiedImageError, OSError, SyntaxError) as retry_exc:
+            raise RuntimeError(f"Failed to create valid PNG at {output_path}") from retry_exc
 
     plt.close(fig)
     return output_path
