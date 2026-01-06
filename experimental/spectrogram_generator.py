@@ -348,7 +348,7 @@ def generate_spectrogram(
     fig.savefig(output_path, dpi=cfg.dpi, bbox_inches="tight")
 
     if output_path.stat().st_size == 0:
-        raise UnidentifiedImageError(f"Empty PNG written to {output_path}")
+        raise RuntimeError(f"Empty PNG written to {output_path}")
 
     # Validate PNG to avoid truncated/corrupted files
     try:
@@ -364,6 +364,7 @@ def generate_spectrogram(
             with Image.open(tmp_path) as png_check:
                 png_check.verify()
         except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as retry_exc:
+            tmp_path.unlink(missing_ok=True)
             raise RuntimeError(f"Failed to create valid PNG at {output_path}. Initial error: {exc}") from retry_exc
         else:
             tmp_path.replace(output_path)
