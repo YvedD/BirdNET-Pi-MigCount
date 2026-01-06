@@ -35,12 +35,13 @@ def test_generate_spectrogram_recovers_from_corrupt_png(monkeypatch, tmp_path):
     wav_path = Path(__file__).parent / "testdata" / "Pica pica_30s.wav"
 
     real_open = Image.open
-    open_calls = {"count": 0}
+    open_call_count = 0
 
     def flaky_open(path, *args, **kwargs):
+        nonlocal open_call_count
         # Fail the first verification pass to trigger the retry logic
-        if Path(path).name.endswith("_spectrogram.png") and open_calls["count"] == 0:
-            open_calls["count"] += 1
+        if open_call_count == 0:
+            open_call_count += 1
 
             class FakeImage:
                 def verify(self):
@@ -59,7 +60,7 @@ def test_generate_spectrogram_recovers_from_corrupt_png(monkeypatch, tmp_path):
 
     output = generate_spectrogram(wav_path, config, overlay_segments=False, output_dir=tmp_path)
 
-    assert open_calls["count"] == 1
+    assert open_call_count == 1
     assert output.exists()
     with Image.open(output) as img:
         img.verify()
