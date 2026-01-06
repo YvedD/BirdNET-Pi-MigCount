@@ -78,11 +78,11 @@ def test_log_spectrogram_clamps_low_frequency(monkeypatch, tmp_path):
     wav_path = Path(__file__).parent / "testdata" / "Pica pica_30s.wav"
 
     ylim_calls = []
-    real_set_ylim = matplotlib.axes.Axes.set_ylim
+    original_set_ylim = matplotlib.axes.Axes.set_ylim
 
     def tracking_set_ylim(self, bottom=None, top=None, *args, **kwargs):
         ylim_calls.append((bottom, top))
-        return real_set_ylim(self, bottom=bottom, top=top, *args, **kwargs)
+        return original_set_ylim(self, bottom=bottom, top=top, *args, **kwargs)
 
     monkeypatch.setattr(matplotlib.axes.Axes, "set_ylim", tracking_set_ylim)
 
