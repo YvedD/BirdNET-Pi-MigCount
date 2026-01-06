@@ -11,7 +11,6 @@ This module is sandboxed: it only consumes WAVs from input_directory and writes 
 """
 from __future__ import annotations
 
-import io
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -348,6 +347,10 @@ def generate_spectrogram(
     def _save_png(fig_obj: plt.Figure, path: Path, dpi: int) -> None:
         fig_obj.savefig(path, dpi=dpi, bbox_inches="tight", format="png")
 
+    def _cleanup_paths(*paths: Path) -> None:
+        for path in paths:
+            path.unlink(missing_ok=True)
+
     _save_png(fig, output_path, cfg.dpi)
 
     if not output_path.exists():
@@ -360,7 +363,7 @@ def generate_spectrogram(
         with Image.open(output_path) as png_check:
             png_check.verify()
     except Image.DecompressionBombError:
-        output_path.unlink(missing_ok=True)
+        _cleanup_paths(output_path)
         raise
     except (UnidentifiedImageError, OSError) as exc:
         tmp_path = output_path.with_suffix(".tmp.png")
@@ -369,8 +372,7 @@ def generate_spectrogram(
             with Image.open(tmp_path) as png_check:
                 png_check.verify()
         except Image.DecompressionBombError:
-            tmp_path.unlink(missing_ok=True)
-            output_path.unlink(missing_ok=True)
+            _cleanup_paths(tmp_path, output_path)
             raise
         except (UnidentifiedImageError, OSError) as retry_exc:
             raise RuntimeError(
@@ -378,6 +380,7 @@ def generate_spectrogram(
             ) from retry_exc
         else:
             try:
+                # Use replace to atomically swap the temporary file into place where supported.
                 tmp_path.replace(output_path)
             except OSError as replace_exc:
                 raise RuntimeError(f"Failed to move temporary PNG to {output_path}") from replace_exc
