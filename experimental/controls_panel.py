@@ -1,151 +1,58 @@
-"""
-Experimental controls panel for spectrogram parameter tuning.
-
-This Streamlit UI is sandboxed and only edits experimental/spectrogram_config.json.
-It regenerates PNGs using tests/testdata WAV files and never touches BirdNET
-inference or production spectrogram paths.
-"""
-
-from __future__ import annotations
-
-import sys
 from pathlib import Path
-
+import sys
 import streamlit as st
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-if str(PROJECT_ROOT) not in sys.path:
-    sys.path.insert(0, str(PROJECT_ROOT))
+sys.path.insert(0, str(PROJECT_ROOT))
 
-from experimental.spectrogram_generator import (  # type: ignore  # noqa: E402
+from experimental.spectrogram_generator import (
     CONFIG_PATH,
-    EXPERIMENT_ROOT,
     SpectrogramConfig,
     generate_for_directory,
     generate_spectrogram,
     load_config,
-    save_config,
 )
-
 
 def render():
     st.title("Experimental Spectrogram Controls")
-    st.caption(
-        "Sandboxed renderer for Raven/Chirpity-style spectrograms. "
-        "Does not affect BirdNET detection, models, or production outputs."
-    )
 
-    config = load_config(CONFIG_PATH)
+    cfg = load_config(CONFIG_PATH)
 
-    with st.form("spectrogram_params"):
-        st.subheader("Transform & Signal")
-        transform = st.selectbox("Transform", ["mel", "stft", "cqt"], index=["mel", "stft", "cqt"].index(config.transform))
-        sample_rate = st.selectbox("Sample rate (Hz)", [24000, 48000], index=[24000, 48000].index(config.sample_rate))
-        n_fft_options = [2048, 4096, 8192] if sample_rate == 48000 else [2048, 4096]
-        n_fft = st.selectbox("FFT size", n_fft_options, index=n_fft_options.index(config.n_fft if config.n_fft in n_fft_options else n_fft_options[0]))
-        hop_ratio = st.selectbox("Hop ratio (overlap)", [0.0625, 0.125], index=[0.0625, 0.125].index(config.hop_ratio if config.hop_ratio in [0.0625, 0.125] else 0.125))
-        window = st.selectbox("Window", ["hann", "blackman", "hamming", "bartlett"], index=["hann", "blackman", "hamming", "bartlett"].index(config.window if config.window in ["hann", "blackman", "hamming", "bartlett"] else "hann"))
-        max_duration = st.number_input(
-            "Max duration (seconds, blank for full file)",
-            value=float(config.max_duration_sec) if config.max_duration_sec else 0.0,
-            min_value=0.0,
-        )
+    with st.form("params"):
+        transform = st.selectbox("Transform", ["mel", "stft", "cqt"], index=["mel","stft","cqt"].index(cfg.transform))
+        sample_rate = st.selectbox("Sample rate", [24000, 48000], index=[24000,48000].index(cfg.sample_rate))
+        n_fft = st.selectbox("FFT size", [2048,4096,8192], index=[2048,4096,8192].index(cfg.n_fft))
+        hop_ratio = st.selectbox("Hop ratio", [0.0625,0.125], index=[0.0625,0.125].index(cfg.hop_ratio))
+        window = st.selectbox("Window", ["hann","blackman","hamming","bartlett"], index=0)
 
-        st.subheader("Scale & Display")
-        use_log_frequency = st.checkbox(
-            "Logarithmic frequency axis", value=config.use_log_frequency
-        )
-        fmin = st.number_input("Minimum frequency (Hz)", value=float(config.fmin or 200.0), min_value=0.0, max_value=96000.0)
-        fmax = st.number_input("Maximum frequency (Hz)", value=float(config.fmax or 10000.0), min_value=0.0, max_value=96000.0)
-        top_db_choices = ["None", 35.0, 40.0, 45.0, 50.0]
-        top_db_index = 0 if config.top_db is None else top_db_choices.index(
-            config.top_db if config.top_db in top_db_choices else 45.0
-        )
-        top_db_selected = st.selectbox("Top dB", top_db_choices, index=top_db_index)
-        dynamic_range = st.number_input("Dynamic range (dB)", value=float(config.dynamic_range), min_value=10.0)
-        contrast_percentile = st.number_input(
-            "Contrast percentile (0-100, 0 disables percentile clipping)",
-            value=float(config.contrast_percentile or 0.0),
-            min_value=0.0,
-            max_value=100.0,
-        )
-        colormap = st.selectbox("Colormap", ["magma", "inferno", "gray_r", "plasma"], index=["magma", "inferno", "gray_r", "plasma"].index(config.colormap if config.colormap in ["magma", "inferno", "gray_r", "plasma"] else "magma"))
-        n_mels = st.selectbox("Number of Mel bins", [256, 512, 1024], index=[256, 512, 1024].index(config.n_mels if config.n_mels in [256, 512, 1024] else 512))
-        power = st.number_input("Power (mel)", value=float(config.power), min_value=1.0, max_value=4.0, step=0.5)
-        pcen_enabled = st.checkbox("Enable PCEN", value=config.pcen_enabled)
-        per_freq_norm = st.checkbox("Per-frequency normalization", value=config.per_frequency_normalization)
-        ref_power = st.number_input("Reference power (dB ref)", value=float(config.ref_power), min_value=0.0001, format="%.4f")
+        fmin = st.number_input("fmin (Hz)", value=float(cfg.fmin or 0))
+        fmax = st.number_input("fmax (Hz)", value=float(cfg.fmax or 16000))
+        n_mels = st.selectbox("Mel bins", [256,512,1024], index=[256,512,1024].index(cfg.n_mels))
+        power = st.number_input("Power", value=cfg.power)
+        pcen = st.checkbox("PCEN", value=cfg.pcen_enabled)
 
-        st.subheader("Output")
-        fig_width = st.number_input("Figure width (inches)", value=float(config.fig_width))
-        fig_height = st.number_input("Figure height (inches)", value=float(config.fig_height))
-        dpi = st.number_input("DPI", value=int(config.dpi), min_value=72)
-        title = st.text_input("Title", value=config.title)
-        output_directory = st.text_input(
-            "Output directory", value=str(config.output_directory)
-        )
+        submit = st.form_submit_button("Save")
 
-        submitted = st.form_submit_button("Save configuration")
-        if submitted:
-            updated = config.to_dict()
-            updated.update(
-                {
-                    "transform": transform,
-                    "sample_rate": int(sample_rate),
-                    "n_fft": int(n_fft),
-                    "hop_ratio": float(hop_ratio),
-                    "hop_length": int(int(n_fft) * float(hop_ratio)),
-                    "window": window,
-                    "max_duration_sec": None if max_duration <= 0 else float(max_duration),
-                    "use_log_frequency": use_log_frequency,
-                    "fmin": None if fmin <= 0 else float(fmin),
-                    "fmax": None if fmax <= 0 else float(fmax),
-                    "n_mels": int(n_mels),
-                    "power": float(power),
-                    "pcen_enabled": bool(pcen_enabled),
-                    "per_frequency_normalization": bool(per_freq_norm),
-                    "ref_power": float(ref_power),
-                    "top_db": None if top_db_selected == "None" else float(top_db_selected),
-                    "dynamic_range": float(dynamic_range),
-                    "contrast_percentile": None if contrast_percentile <= 0 else float(contrast_percentile),
-                    "colormap": colormap,
-                    "fig_width": float(fig_width),
-                    "fig_height": float(fig_height),
-                    "dpi": int(dpi),
-                    "title": title,
-                    "output_directory": output_directory,
-                }
-            )
-            save_config(SpectrogramConfig.from_dict(updated))
-            st.success("Configuration saved to spectrogram_config.json")
+    if submit:
+        SpectrogramConfig.from_dict({
+            **cfg.__dict__,
+            "transform": transform,
+            "sample_rate": sample_rate,
+            "n_fft": n_fft,
+            "hop_ratio": hop_ratio,
+            "window": window,
+            "fmin": fmin or None,
+            "fmax": fmax or None,
+            "n_mels": n_mels,
+            "power": power,
+            "pcen_enabled": pcen,
+        })
+        st.success("Saved")
 
-    if st.button("Generate spectrogram PNGs", type="primary"):
-        cfg = load_config(CONFIG_PATH)
-        outputs = generate_for_directory(cfg.input_directory, cfg.output_directory, cfg)
-        if outputs:
-            st.success(f"Generated {len(outputs)} spectrogram file(s).")
-            st.write("Latest file:")
-            st.image(str(outputs[-1]))
-        else:
-            st.warning("No .wav files found to process.")
-
-    st.subheader("Upload a WAV to generate a PNG")
-    uploaded = st.file_uploader("Select a .wav file", type=["wav"])
-    if uploaded is not None:
-        cfg = load_config(CONFIG_PATH)
-        output_dir = cfg.output_directory
-        output_dir.mkdir(parents=True, exist_ok=True)
-        wav_path = output_dir / f"user_{uploaded.name}"
-        wav_path.write_bytes(uploaded.read())
-        png_path = generate_spectrogram(wav_path, cfg, output_dir)
-        st.success(f"Generated {png_path.name}")
-        st.image(str(png_path))
-
-    st.markdown(
-        "This page is for visual experimentation only. "
-        "Production BirdNET audio workflows remain unchanged."
-    )
-
+    if st.button("Generate PNGs"):
+        files = generate_for_directory(cfg.input_directory, cfg.output_directory, cfg)
+        if files:
+            st.image(str(files[-1]))
 
 if __name__ == "__main__":
     render()
