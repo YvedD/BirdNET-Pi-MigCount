@@ -350,6 +350,8 @@ def generate_spectrogram(
 
     _save_png(fig, output_path, cfg.dpi)
 
+    if not output_path.exists():
+        raise RuntimeError(f"No PNG written to {output_path}")
     if output_path.stat().st_size == 0:
         raise RuntimeError(f"Empty PNG written to {output_path}")
 
@@ -367,6 +369,7 @@ def generate_spectrogram(
             with Image.open(tmp_path) as png_check:
                 png_check.verify()
         except Image.DecompressionBombError:
+            output_path.unlink(missing_ok=True)
             raise
         except (UnidentifiedImageError, OSError) as retry_exc:
             raise RuntimeError(
