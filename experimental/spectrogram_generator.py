@@ -351,7 +351,7 @@ def generate_spectrogram(
     try:
         with Image.open(output_path) as png_check:
             png_check.verify()
-    except (UnidentifiedImageError, OSError, SyntaxError):
+    except (UnidentifiedImageError, OSError, Image.DecompressionBombError):
         with io.BytesIO() as buffer:
             fig.savefig(buffer, format="png", dpi=cfg.dpi, bbox_inches="tight")
             buffer.seek(0)
@@ -359,7 +359,7 @@ def generate_spectrogram(
         try:
             with Image.open(output_path) as png_check:
                 png_check.verify()
-        except (UnidentifiedImageError, OSError, SyntaxError) as retry_exc:
+        except (UnidentifiedImageError, OSError, Image.DecompressionBombError) as retry_exc:
             raise RuntimeError(f"Failed to create valid PNG at {output_path}") from retry_exc
 
     plt.close(fig)
