@@ -369,7 +369,9 @@ def generate_spectrogram(
     if hasattr(img, "set_interpolation"):
         img.set_interpolation("nearest")
     if effective_fmin > 0.0 or effective_fmax < nyquist:
-        ax.set_ylim(bottom=effective_fmin if effective_fmin else None, top=effective_fmax)
+        bottom_val = effective_fmin if effective_fmin > 0.0 else None
+        top_val = effective_fmax if effective_fmax < nyquist else None
+        ax.set_ylim(bottom=bottom_val, top=top_val)
     ax.set_aspect("auto")
     ax.set_title(cfg.title)
     ax.set_xlabel("Time (s)")
