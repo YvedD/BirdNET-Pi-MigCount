@@ -19,6 +19,7 @@ from typing import Dict, List, Optional, Tuple
 import librosa
 import librosa.display  # type: ignore
 import matplotlib.pyplot as plt
+from matplotlib import colors as mcolors
 import numpy as np
 from scipy.io import wavfile
 from matplotlib.patches import Rectangle
@@ -27,6 +28,33 @@ from PIL import Image, UnidentifiedImageError
 EXPERIMENT_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = EXPERIMENT_ROOT.parent
 CONFIG_PATH = EXPERIMENT_ROOT / "spectrogram_config.json"
+
+
+def _calculate_hop_length(n_fft: int, hop_ratio: float, provided: Optional[int] = None) -> int:
+    hop_from_ratio = int(n_fft * hop_ratio)
+    return provided if provided and provided > 0 else hop_from_ratio
+
+
+def _lighten_colormap(name: str, floor: float = 0.2) -> mcolors.Colormap:
+    base = plt.get_cmap(name)
+    samples = np.linspace(floor, 1.0, base.N)
+    light_cmap = mcolors.LinearSegmentedColormap.from_list(f"{name}_soft", base(samples))
+    try:
+        plt.register_cmap(f"{name}_soft", light_cmap)
+    except ValueError:
+        # Already registered
+        pass
+    return light_cmap
+
+
+def _resolve_colormap(name: str):
+    if name in plt.colormaps():
+        return plt.get_cmap(name)
+    if name == "soft_gray":
+        return _lighten_colormap("gray_r", 0.25)
+    if name.endswith("_light") and name[:-6] in plt.colormaps():
+        return _lighten_colormap(name[:-6], 0.25)
+    return plt.get_cmap("viridis")
 
 
 def _save_png(fig_obj: plt.Figure, path: Path, dpi: int) -> None:
@@ -204,7 +232,7 @@ def detect_segments(y: np.ndarray, sr: int, cfg: SpectrogramConfig) -> List[Tupl
     """
 
     # Compute RMS per frame
-    hop_length = int(cfg.n_fft * cfg.hop_ratio)
+    hop_length = _calculate_hop_length(cfg.n_fft, cfg.hop_ratio, getattr(cfg, "hop_length", None))
     rms = librosa.feature.rms(y=y, frame_length=cfg.rms_frame_length, hop_length=hop_length)[0]
 
     # Normalize RMS to [0,1]
@@ -280,8 +308,7 @@ def generate_spectrogram(
     if effective_fmax <= effective_fmin:
         effective_fmin = max(0.0, effective_fmax * 0.5)
 
-    hop_length = int(cfg.n_fft * cfg.hop_ratio)
-    cfg.hop_length = hop_length
+    hop_length = _calculate_hop_length(cfg.n_fft, cfg.hop_ratio, getattr(cfg, "hop_length", None))
 
     # Generate spectrogram
     if cfg.transform.lower() == "mel":
@@ -337,7 +364,8 @@ def generate_spectrogram(
 
     # Plot spectrogram with optional overlay
     fig, ax = plt.subplots(figsize=(cfg.fig_width, cfg.fig_height), dpi=cfg.dpi)
-    img = librosa.display.specshow(S_db, sr=sr, hop_length=hop_length, x_axis="time", y_axis=y_axis, fmin=effective_fmin, fmax=effective_fmax, cmap=cfg.colormap, vmin=vmin, vmax=vmax, ax=ax)
+    cmap_obj = _resolve_colormap(cfg.colormap)
+    img = librosa.display.specshow(S_db, sr=sr, hop_length=hop_length, x_axis="time", y_axis=y_axis, fmin=effective_fmin, fmax=effective_fmax, cmap=cmap_obj, vmin=vmin, vmax=vmax, ax=ax)
     if hasattr(img, "set_interpolation"):
         img.set_interpolation("nearest")
     ax.set_aspect("auto")
