@@ -369,6 +369,7 @@ def generate_spectrogram(
             with Image.open(tmp_path) as png_check:
                 png_check.verify()
         except Image.DecompressionBombError:
+            tmp_path.unlink(missing_ok=True)
             output_path.unlink(missing_ok=True)
             raise
         except (UnidentifiedImageError, OSError) as retry_exc:
@@ -376,7 +377,10 @@ def generate_spectrogram(
                 f"Failed to create valid PNG at {output_path}; initial error: {exc}; retry error: {retry_exc}"
             ) from retry_exc
         else:
-            tmp_path.replace(output_path)
+            try:
+                tmp_path.replace(output_path)
+            except OSError as replace_exc:
+                raise RuntimeError(f"Failed to move temporary PNG to {output_path}") from replace_exc
         finally:
             if tmp_path.exists():
                 tmp_path.unlink()
