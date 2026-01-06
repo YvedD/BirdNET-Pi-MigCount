@@ -351,11 +351,11 @@ def generate_spectrogram(
     try:
         with Image.open(output_path) as png_check:
             png_check.verify()
-    except (UnidentifiedImageError, OSError, SyntaxError) as exc:
-        buffer = io.BytesIO()
-        fig.savefig(buffer, format="png", dpi=cfg.dpi, bbox_inches="tight")
-        buffer.seek(0)
-        output_path.write_bytes(buffer.read())
+    except (UnidentifiedImageError, OSError, SyntaxError):
+        with io.BytesIO() as buffer:
+            fig.savefig(buffer, format="png", dpi=cfg.dpi, bbox_inches="tight")
+            buffer.seek(0)
+            output_path.write_bytes(buffer.read())
         try:
             with Image.open(output_path) as png_check:
                 png_check.verify()
