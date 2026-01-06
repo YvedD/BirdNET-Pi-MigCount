@@ -67,6 +67,7 @@ class SpectrogramConfig:
     segment_directory: str = "experimental/segments"  # Where to save WAV segments
 
     sigmoid_k: float = 20.0  # Steepness of sigmoid for RMS soft-thresholding
+    overlay_segments: bool = False  # Whether to overlay detected segments on the spectrogram
 
     @classmethod
     def from_dict(cls, data: Dict) -> "SpectrogramConfig":
@@ -108,6 +109,13 @@ class SpectrogramConfig:
             if data.get("max_duration_sec") in (None, "")
             else float(data["max_duration_sec"]),
             title=str(data.get("title", "Experimental Spectrogram")),
+            rms_frame_length=int(data.get("rms_frame_length", 1024)),
+            rms_threshold=float(data.get("rms_threshold", 0.2)),
+            min_segment_duration=float(data.get("min_segment_duration", 0.05)),
+            min_silence_duration=float(data.get("min_silence_duration", 0.05)),
+            segment_directory=str(data.get("segment_directory", "experimental/segments")),
+            sigmoid_k=float(data.get("sigmoid_k", 20.0)),
+            overlay_segments=bool(data.get("overlay_segments", False)),
         )
 
     def to_dict(self) -> Dict:
@@ -149,6 +157,7 @@ class SpectrogramConfig:
             "min_silence_duration": self.min_silence_duration,
             "segment_directory": self.segment_directory,
             "sigmoid_k": self.sigmoid_k,
+            "overlay_segments": self.overlay_segments,
         }
 
 
@@ -239,8 +248,15 @@ def export_segments(y: np.ndarray, sr: int, segments: List[Tuple[int, int]], cfg
         wavfile.write(str(wav_out), sr, (y[start:end] * 32767).astype(np.int16))
 
 
-def generate_spectrogram(wav_path: Path, cfg: SpectrogramConfig, output_dir: Path) -> Path:
-    """Generate a single spectrogram with segment overlay and optional segment export."""
+def generate_spectrogram(
+    wav_path: Path,
+    cfg: SpectrogramConfig,
+    overlay_segments: bool = False,
+    export_segments_flag: bool = False,
+    output_dir: Optional[Path] = None,
+) -> Path:
+    """Generate a single spectrogram with optional segment overlay/export."""
+    output_dir = output_dir or cfg.output_directory
     output_dir.mkdir(parents=True, exist_ok=True)
     y, sr = librosa.load(wav_path, sr=cfg.sample_rate, mono=True)
     y = _trim_audio(y, sr, cfg.max_duration_sec)
@@ -303,10 +319,11 @@ def generate_spectrogram(wav_path: Path, cfg: SpectrogramConfig, output_dir: Pat
     # Detect segments
     segments = detect_segments(y, sr, cfg)
 
-    # Export segments
-    export_segments(y, sr, segments, cfg, wav_path.stem)
+    # Export segments if enabled
+    if export_segments_flag:
+        export_segments(y, sr, segments, cfg, wav_path.stem)
 
-    # Plot spectrogram with overlay
+    # Plot spectrogram with optional overlay
     fig, ax = plt.subplots(figsize=(cfg.fig_width, cfg.fig_height), dpi=cfg.dpi)
     img = librosa.display.specshow(S_db, sr=sr, hop_length=hop_length, x_axis="time", y_axis=y_axis, fmin=effective_fmin, fmax=effective_fmax, cmap=cfg.colormap, vmin=vmin, vmax=vmax, ax=ax)
     if hasattr(img, "set_interpolation"):
@@ -318,9 +335,9 @@ def generate_spectrogram(wav_path: Path, cfg: SpectrogramConfig, output_dir: Pat
     cbar = fig.colorbar(img, ax=ax, format="%+2.0f dB")
     cbar.set_label("Amplitude (dB)")
 
-    # Overlay detected segments
-    for start, end in segments:
-        ax.add_patch(Rectangle((start / sr, effective_fmin), (end - start) / sr, effective_fmax - effective_fmin, edgecolor="red", facecolor="none", linewidth=1.2))
+    if overlay_segments:
+        for start, end in segments:
+            ax.add_patch(Rectangle((start / sr, effective_fmin), (end - start) / sr, effective_fmax - effective_fmin, edgecolor="red", facecolor="none", linewidth=1.2))
 
     fig.tight_layout()
     output_path = output_dir / f"{wav_path.stem}_spectrogram.png"
@@ -334,7 +351,7 @@ def generate_for_directory(input_dir: Path, output_dir: Path, cfg: SpectrogramCo
     wav_files = sorted(input_dir.glob("*.wav"))
     results = []
     for wav_path in wav_files:
-        results.append(generate_spectrogram(wav_path, cfg, output_dir))
+        results.append(generate_spectrogram(wav_path, cfg, overlay_segments=cfg.overlay_segments, output_dir=output_dir))
     return results
 
 
