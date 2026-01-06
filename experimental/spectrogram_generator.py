@@ -9,7 +9,6 @@ This module generates spectrogram PNGs from WAV files with additional features:
 
 This module is sandboxed: it only consumes WAVs from input_directory and writes PNGs to output_directory.
 """
-
 from __future__ import annotations
 
 import json
