@@ -29,6 +29,15 @@ PROJECT_ROOT = EXPERIMENT_ROOT.parent
 CONFIG_PATH = EXPERIMENT_ROOT / "spectrogram_config.json"
 
 
+def _save_png(fig_obj: plt.Figure, path: Path, dpi: int) -> None:
+    fig_obj.savefig(path, dpi=dpi, bbox_inches="tight", format="png")
+
+
+def _cleanup_paths(*paths: Path) -> None:
+    for path in paths:
+        path.unlink(missing_ok=True)
+
+
 @dataclass
 class SpectrogramConfig:
     """Container for JSON-driven spectrogram parameters with detailed descriptions."""
@@ -344,13 +353,6 @@ def generate_spectrogram(
 
     fig.tight_layout()
     output_path = output_dir / f"{wav_path.stem}_spectrogram.png"
-    def _save_png(fig_obj: plt.Figure, path: Path, dpi: int) -> None:
-        fig_obj.savefig(path, dpi=dpi, bbox_inches="tight", format="png")
-
-    def _cleanup_paths(*paths: Path) -> None:
-        for path in paths:
-            path.unlink(missing_ok=True)
-
     _save_png(fig, output_path, cfg.dpi)
 
     if not output_path.exists():
@@ -380,7 +382,8 @@ def generate_spectrogram(
             ) from retry_exc
         else:
             try:
-                # Use replace to atomically swap the temporary file into place where supported.
+                # Use replace to atomically swap the temporary file into place where supported;
+                # any platform limitations surface as an OSError handled below.
                 tmp_path.replace(output_path)
             except OSError as replace_exc:
                 raise RuntimeError(f"Failed to move temporary PNG to {output_path}") from replace_exc
