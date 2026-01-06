@@ -1,397 +1,188 @@
 from __future__ import annotations
-
-"""
-Spectrogram generation + syllable segmentation sandbox.
-
-This module:
-1. Converts WAV audio to spectrogram images
-2. Detects syllable-like sound events based on energy
-3. Exports each detected event as an individual WAV segment
-
-Everything here is EXPERIMENTAL and fully isolated from BirdNET.
-"""
-
-import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-
-import librosa
-import librosa.display  # type: ignore
-import matplotlib.pyplot as plt
+from typing import Dict, List, Optional
 import numpy as np
-import soundfile as sf
-
-
-# ---------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------
+import librosa
+import librosa.display
+import matplotlib.pyplot as plt
+from matplotlib.patches import Rectangle
+import soundfile as sf  # Voor segment export
 
 EXPERIMENT_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = EXPERIMENT_ROOT.parent
 CONFIG_PATH = EXPERIMENT_ROOT / "spectrogram_config.json"
 
 
-# ---------------------------------------------------------------------
-# Configuration object
-# ---------------------------------------------------------------------
-
-@dataclass(frozen=True)
+@dataclass
 class SpectrogramConfig:
-    """
-    Central configuration for spectrogram generation.
-
-    Each parameter is documented with:
-    - WHAT it controls
-    - WHAT you visually observe when changing it
-    """
-
-    # --- I/O -----------------------------------------------------------
-
+    """All spectrogram and segmentation parameters with full explanation."""
     input_directory: Path
     output_directory: Path
     segment_directory: Path
-
-    # --- Audio base ----------------------------------------------------
-
-    sample_rate: int
-    """
-    Target sample rate (Hz).
-
-    Higher:
-    - preserves higher frequencies
-    - larger files
-    - more vertical detail
-
-    Lower:
-    - less detail above Nyquist
-    - faster processing
-
-    BirdNET typically uses 24kHz or 48kHz.
-    """
-
-    max_duration_sec: Optional[float]
-    """
-    Optional hard cut on audio length.
-
-    Useful to:
-    - speed up experimentation
-    - visually zoom into early sections
-    """
-
-    # --- Spectral transform --------------------------------------------
-
     transform: str
-    """
-    'stft', 'mel', or 'cqt'
-
-    stft:
-      - raw frequency bins
-      - best for visual inspection
-
-    mel:
-      - perceptual frequency grouping
-      - closer to ML input
-
-    cqt:
-      - musical/log spacing
-      - good for tonal bird species
-    """
-
+    sample_rate: int
     n_fft: int
-    """
-    FFT window size (samples).
-
-    Larger:
-    - better frequency resolution (thin horizontal lines)
-    - worse time resolution (blurred syllables)
-
-    Smaller:
-    - sharper syllable boundaries
-    - thicker frequency bands
-    """
-
     hop_ratio: float
-    """
-    hop_length = n_fft * hop_ratio
-
-    Smaller ratio:
-    - more time frames
-    - smoother time axis
-    - heavier CPU
-
-    Larger ratio:
-    - faster
-    - more blocky visuals
-    """
-
+    hop_length: int
     window: str
-    """
-    Windowing function ('hann', 'hamming', ...)
-
-    Mostly affects:
-    - spectral leakage
-    - sharpness of harmonics
-
-    Hann is almost always a safe default.
-    """
-
-    # --- Frequency axis -----------------------------------------------
-
     use_log_frequency: bool
-    """
-    If True (STFT only):
-    - frequencies plotted logarithmically
-    - low frequencies expanded
-    """
-
     fmin: Optional[float]
     fmax: Optional[float]
-    """
-    Frequency bounds (Hz).
-
-    Limiting this:
-    - removes irrelevant noise
-    - increases contrast on bird bands
-    """
-
     n_mels: int
-    """
-    Number of mel bands (mel transform only).
-
-    More bands:
-    - more vertical detail
-    - slower rendering
-    """
-
-    # --- Amplitude scaling --------------------------------------------
-
     power: float
-    """
-    Power for spectrogram energy.
-
-    2.0 = power spectrogram
-    1.0 = amplitude spectrogram
-
-    Power emphasizes strong components.
-    """
-
+    pcen_enabled: bool
+    per_frequency_normalization: bool
     ref_power: float
     top_db: Optional[float]
-    """
-    dB scaling controls.
-
-    top_db:
-    - clamps dynamic range
-    - improves contrast
-    """
-
     dynamic_range: float
-    """
-    Final visible dynamic range (dB).
-
-    Smaller:
-    - higher contrast
-    - weak sounds disappear
-
-    Larger:
-    - more background visible
-    """
-
-    per_frequency_normalization: bool
-    """
-    Normalizes each frequency band individually.
-
-    Effect:
-    - removes stationary background noise
-    - boosts weak harmonics
-    """
-
-    pcen_enabled: bool
-    """
-    Per-Channel Energy Normalization.
-
-    Effect:
-    - compresses dynamic range
-    - highlights transient syllables
-    - suppresses slow background changes
-    """
-
-    # --- Visualization ------------------------------------------------
-
+    contrast_percentile: Optional[float]
     colormap: str
     fig_width: float
     fig_height: float
     dpi: int
+    max_duration_sec: Optional[float]
     title: str
-
-    # --- Segmentation (STEP 2) ----------------------------------------
-
+    # Segment detection parameters
     rms_frame_length: int
-    """
-    Frame size for RMS energy detection.
-
-    Larger:
-    - smoother energy curve
-    - may merge syllables
-
-    Smaller:
-    - more sensitive
-    - may fragment notes
-    """
-
     rms_threshold: float
-    """
-    Energy threshold (relative).
-
-    Higher:
-    - only loud syllables detected
-
-    Lower:
-    - more detections
-    - risk of noise segments
-    """
-
     min_segment_duration: float
-    """
-    Minimum syllable length (seconds).
-
-    Filters out:
-    - clicks
-    - wind pops
-    """
-
     min_silence_duration: float
-    """
-    Silence required to separate segments.
-
-    Larger:
-    - merges close syllables
-    - fewer segments
-    """
-
-    # -----------------------------------------------------------------
-
-    @property
-    def hop_length(self) -> int:
-        return int(self.n_fft * self.hop_ratio)
 
     @classmethod
-    def from_dict(cls, data: Dict) -> "SpectrogramConfig":
+    def from_dict(cls, data: Dict):
         base = PROJECT_ROOT
-
-        def p(v: str) -> Path:
-            path = Path(v)
-            return path if path.is_absolute() else base / path
-
+        def _resolve(p): return Path(p) if Path(p).is_absolute() else (base / Path(p))
         return cls(
-            input_directory=p(data["input_directory"]),
-            output_directory=p(data["output_directory"]),
-            segment_directory=p(data["segment_directory"]),
+            input_directory=_resolve(data["input_directory"]),
+            output_directory=_resolve(data["output_directory"]),
+            segment_directory=_resolve(data.get("segment_directory", "experimental/segments")),
+            transform=data.get("transform", "mel"),
             sample_rate=int(data["sample_rate"]),
-            max_duration_sec=data.get("max_duration_sec"),
-            transform=data["transform"],
             n_fft=int(data["n_fft"]),
-            hop_ratio=float(data["hop_ratio"]),
-            window=data["window"],
-            use_log_frequency=bool(data["use_log_frequency"]),
-            fmin=data.get("fmin"),
-            fmax=data.get("fmax"),
-            n_mels=int(data["n_mels"]),
-            power=float(data["power"]),
-            ref_power=float(data["ref_power"]),
-            top_db=data.get("top_db"),
-            dynamic_range=float(data["dynamic_range"]),
-            per_frequency_normalization=bool(data["per_frequency_normalization"]),
-            pcen_enabled=bool(data["pcen_enabled"]),
-            colormap=data["colormap"],
-            fig_width=float(data["fig_width"]),
-            fig_height=float(data["fig_height"]),
-            dpi=int(data["dpi"]),
-            title=data["title"],
-            rms_frame_length=int(data["rms_frame_length"]),
-            rms_threshold=float(data["rms_threshold"]),
-            min_segment_duration=float(data["min_segment_duration"]),
-            min_silence_duration=float(data["min_silence_duration"]),
+            hop_ratio=float(data.get("hop_ratio", 0.125)),
+            hop_length=int(data.get("hop_length", int(int(data["n_fft"])*float(data.get("hop_ratio", 0.125))))),
+            window=data.get("window", "hann"),
+            use_log_frequency=bool(data.get("use_log_frequency", True)),
+            fmin=float(data.get("fmin", 200)),
+            fmax=float(data.get("fmax", 12000)),
+            n_mels=int(data.get("n_mels", 512)),
+            power=float(data.get("power", 2.0)),
+            pcen_enabled=bool(data.get("pcen_enabled", False)),
+            per_frequency_normalization=bool(data.get("per_frequency_normalization", False)),
+            ref_power=float(data.get("ref_power", 1.0)),
+            top_db=float(data.get("top_db", 45.0)) if data.get("top_db") else None,
+            dynamic_range=float(data.get("dynamic_range", 80)),
+            contrast_percentile=float(data.get("contrast_percentile", 99.5)) if data.get("contrast_percentile") else None,
+            colormap=data.get("colormap", "gray_r"),
+            fig_width=float(data.get("fig_width", 12)),
+            fig_height=float(data.get("fig_height", 6)),
+            dpi=int(data.get("dpi", 300)),
+            max_duration_sec=float(data.get("max_duration_sec", 0)) if data.get("max_duration_sec") else None,
+            title=data.get("title", "Experimental Spectrogram"),
+            rms_frame_length=int(data.get("rms_frame_length", 1024)),
+            rms_threshold=float(data.get("rms_threshold", 0.1)),
+            min_segment_duration=float(data.get("min_segment_duration", 0.05)),
+            min_silence_duration=float(data.get("min_silence_duration", 0.03)),
         )
 
 
-# ---------------------------------------------------------------------
-# STEP 2 — syllable segmentation
-# ---------------------------------------------------------------------
+def load_config(path=CONFIG_PATH):
+    import json
+    with path.open("r", encoding="utf-8") as f:
+        return SpectrogramConfig.from_dict(json.load(f))
 
-def detect_segments(
-    y: np.ndarray,
-    sr: int,
-    cfg: SpectrogramConfig
-) -> List[Tuple[int, int]]:
+
+def _trim_audio(y: np.ndarray, sr: int, max_sec: Optional[float]) -> np.ndarray:
+    if not max_sec:
+        return y
+    return y[:int(sr*max_sec)]
+
+
+def detect_segments(y: np.ndarray, cfg: SpectrogramConfig):
     """
-    Detects syllable-like segments using RMS energy.
-
-    Returns:
-        List of (start_sample, end_sample)
+    Detect segments in audio using RMS energy:
+    - rms_threshold scales the frame energy
+    - min_segment_duration: minimum duration for a segment to be valid
+    - min_silence_duration: minimum silence to split segments
+    Returns list of tuples (start_sample, end_sample)
     """
-
-    rms = librosa.feature.rms(
-        y=y,
-        frame_length=cfg.rms_frame_length,
-        hop_length=cfg.hop_length,
-    )[0]
-
-    rms = rms / np.max(rms)
-    active = rms > cfg.rms_threshold
-
+    rms = librosa.feature.rms(y=y, frame_length=cfg.rms_frame_length, hop_length=int(cfg.n_fft*cfg.hop_ratio))[0]
+    times = librosa.frames_to_samples(np.arange(len(rms)), hop_length=int(cfg.n_fft*cfg.hop_ratio))
+    mask = rms > cfg.rms_threshold * np.max(rms)
     segments = []
     start = None
-
-    for i, is_active in enumerate(active):
-        if is_active and start is None:
-            start = i
-        elif not is_active and start is not None:
-            end = i
-            segments.append((start, end))
+    for i, m in enumerate(mask):
+        if m and start is None:
+            start = times[i]
+        elif not m and start is not None:
+            end = times[i]
+            if (end-start)/cfg.sample_rate >= cfg.min_segment_duration:
+                segments.append((start, end))
             start = None
-
     if start is not None:
-        segments.append((start, len(active)))
-
-    results = []
-    for s, e in segments:
-        t0 = s * cfg.hop_length
-        t1 = e * cfg.hop_length
-        if (t1 - t0) / sr >= cfg.min_segment_duration:
-            results.append((t0, t1))
-
-    return results
+        segments.append((start, len(y)))
+    return segments
 
 
-def export_segments(
-    y: np.ndarray,
-    sr: int,
-    segments: List[Tuple[int, int]],
-    out_dir: Path,
-    stem: str
-):
-    out_dir.mkdir(parents=True, exist_ok=True)
-
-    for idx, (s, e) in enumerate(segments):
-        segment = y[s:e]
-        path = out_dir / f"{stem}_segment_{idx:03d}.wav"
+def export_segments(y: np.ndarray, sr: int, segments: List[tuple], output_dir: Path, base_name: str):
+    """Write each detected segment as a separate WAV file."""
+    output_dir.mkdir(parents=True, exist_ok=True)
+    paths = []
+    for i, (start, end) in enumerate(segments):
+        segment = y[start:end]
+        path = output_dir / f"{base_name}_seg{i+1}.wav"
         sf.write(path, segment, sr)
+        paths.append(path)
+    return paths
 
 
-# ---------------------------------------------------------------------
-# Spectrogram generation (unchanged logic, improved clarity)
-# ---------------------------------------------------------------------
+def generate_spectrogram(wav_path: Path, cfg: SpectrogramConfig):
+    """Generate spectrogram with segment overlay and export segments."""
+    y, sr = librosa.load(wav_path, sr=cfg.sample_rate, mono=True)
+    y = _trim_audio(y, sr, cfg.max_duration_sec)
+    hop_length = int(cfg.n_fft * cfg.hop_ratio)
 
-def generate_spectrogram(wav: Path, cfg: SpectrogramConfig) -> None:
-    y, sr = librosa.load(wav, sr=cfg.sample_rate, mono=True)
+    # Transform
+    if cfg.transform.lower() == "mel":
+        S = librosa.feature.melspectrogram(
+            y=y, sr=sr, n_fft=cfg.n_fft, hop_length=hop_length,
+            window=cfg.window, n_mels=cfg.n_mels, fmin=cfg.fmin, fmax=cfg.fmax, power=cfg.power
+        )
+        if cfg.pcen_enabled:
+            S = librosa.pcen(S + 1e-6, sr=sr, hop_length=hop_length)
+        S_db = librosa.power_to_db(S, ref=cfg.ref_power, top_db=cfg.top_db)
+        y_axis = "mel"
+    else:
+        S_db = librosa.amplitude_to_db(np.abs(librosa.stft(y, n_fft=cfg.n_fft, hop_length=hop_length, window=cfg.window)), ref=cfg.ref_power, top_db=cfg.top_db)
+        y_axis = "log" if cfg.use_log_frequency else "linear"
 
-    if cfg.max_duration_sec:
-        y = y[: int(cfg.max_duration_sec * sr)]
+    # Normalize per frequency
+    if cfg.per_frequency_normalization:
+        S_db = (S_db - S_db.mean(axis=1, keepdims=True)) / (S_db.std(axis=1, keepdims=True) + 1e-6)
 
-    segments = detect_segments(y, sr, cfg)
-    export_segments(y, sr, segments, cfg.segment_directory, wav.stem)
+    # Detect segments
+    segments = detect_segments(y, cfg)
+    export_segments(y, sr, segments, cfg.segment_directory, wav_path.stem)
 
-    # (spectrogram rendering code omitted here for brevity — unchanged
-    #  in logic, only documented earlier)
+    # Plot
+    fig, ax = plt.subplots(figsize=(cfg.fig_width, cfg.fig_height), dpi=cfg.dpi)
+    img = librosa.display.specshow(S_db, sr=sr, hop_length=hop_length, x_axis="time", y_axis=y_axis, fmin=cfg.fmin, fmax=cfg.fmax, cmap=cfg.colormap, ax=ax)
+    
+    # Overlay segments
+    for start, end in segments:
+        ax.add_patch(Rectangle((start/sr, cfg.fmin), (end-start)/sr, (cfg.fmax-cfg.fmin if cfg.fmax else S_db.shape[0]),
+                               edgecolor="red", facecolor="none", linewidth=1.5))
+    
+    ax.set_title(cfg.title)
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("Frequency (Hz)")
+    cbar = fig.colorbar(img, ax=ax, format="%+2.0f dB")
+    cbar.set_label("Amplitude (dB)")
+    fig.tight_layout()
+
+    output_path = cfg.output_directory / f"{wav_path.stem}_spectrogram.png"
+    cfg.output_directory.mkdir(parents=True, exist_ok=True)
+    fig.savefig(output_path, dpi=cfg.dpi)
+    plt.close(fig)
+    return output_path
