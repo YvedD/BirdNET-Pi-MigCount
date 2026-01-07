@@ -3,7 +3,6 @@ Enhanced spectrogram generator with RMS-based segment detection and sigmoid soft
 
 This module generates spectrogram PNGs from WAV files with additional features:
 - Detection of audio segments (vocalizations, syllables, bird notes)
-- Export of detected segments as individual WAV files
 - Overlay of detected segments on the spectrogram
 - Sigmoid-based soft-thresholding to reduce vertical streak artifacts
 
@@ -22,7 +21,6 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import colors as mcolors
 import numpy as np
-from scipy.io import wavfile
 from matplotlib.patches import Rectangle
 from PIL import Image, UnidentifiedImageError
 
@@ -101,7 +99,7 @@ class SpectrogramConfig:
     rms_threshold: float = 0.2  # RMS threshold (fraction of max RMS) to detect segments
     min_segment_duration: float = 0.05  # Minimum segment duration in seconds
     min_silence_duration: float = 0.05  # Minimum silence to split segments in seconds
-    segment_directory: str = "experimental/segments"  # Where to save WAV segments
+    segment_directory: str = "experimental/segments"  # Legacy placeholder (no WAV export)
 
     sigmoid_k: float = 20.0  # Steepness of sigmoid for RMS soft-thresholding
     overlay_segments: bool = False  # Whether to overlay detected segments on the spectrogram
@@ -280,12 +278,8 @@ def detect_segments(y: np.ndarray, sr: int, cfg: SpectrogramConfig) -> List[Tupl
 
 
 def export_segments(y: np.ndarray, sr: int, segments: List[Tuple[int, int]], cfg: SpectrogramConfig, base_name: str) -> None:
-    """Export detected segments as individual WAV files."""
-    segment_dir = Path(cfg.segment_directory)
-    segment_dir.mkdir(parents=True, exist_ok=True)
-    for idx, (start, end) in enumerate(segments):
-        wav_out = segment_dir / f"{base_name}_seg{idx+1}.wav"
-        wavfile.write(str(wav_out), sr, (y[start:end] * 32767).astype(np.int16))
+    """Segment export intentionally disabled; kept for API compatibility."""
+    return None
 
 
 def generate_spectrogram(
@@ -295,7 +289,7 @@ def generate_spectrogram(
     export_segments_flag: bool = False,
     output_dir: Optional[Path] = None,
 ) -> Path:
-    """Generate a single spectrogram with optional segment overlay/export."""
+    """Generate a single spectrogram with optional segment overlay (no WAV export)."""
     output_dir = output_dir or cfg.output_directory
     output_dir.mkdir(parents=True, exist_ok=True)
     y, sr = librosa.load(wav_path, sr=cfg.sample_rate, mono=True)
@@ -303,8 +297,9 @@ def generate_spectrogram(
 
     # Determine frequency bounds
     nyquist = sr / 2.0
+    freq_cap = min(16000.0, nyquist - 1.0)
     effective_fmin = cfg.fmin or 0.0
-    effective_fmax = min(cfg.fmax or nyquist, nyquist - 1.0)
+    effective_fmax = min(cfg.fmax or freq_cap, freq_cap)
     if effective_fmax <= effective_fmin:
         effective_fmin = max(0.0, effective_fmax * 0.5)
 
@@ -358,9 +353,7 @@ def generate_spectrogram(
     # Detect segments
     segments = detect_segments(y, sr, cfg)
 
-    # Export segments if enabled
-    if export_segments_flag:
-        export_segments(y, sr, segments, cfg, wav_path.stem)
+    # Segment export disabled; overlay remains available
 
     # Plot spectrogram with optional overlay
     fig, ax = plt.subplots(figsize=(cfg.fig_width, cfg.fig_height), dpi=cfg.dpi)
