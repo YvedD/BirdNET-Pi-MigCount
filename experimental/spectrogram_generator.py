@@ -68,48 +68,76 @@ def _cleanup_paths(*paths: Path) -> None:
 
 @dataclass
 class SpectrogramConfig:
-    """Container for JSON-driven spectrogram parameters with detailed descriptions."""
+    """
+    Container for JSON-driven spectrogram parameters.
 
-    input_directory: Path  # Directory containing input WAVs
-    output_directory: Path  # Directory to save spectrogram PNGs
-    transform: str  # 'mel', 'stft', or 'cqt'
-    sample_rate: int  # Target sampling rate (Hz)
-    n_fft: int  # FFT window size; larger = better frequency resolution, slower
-    hop_ratio: float  # Fractional hop; determines overlap (hop_length = n_fft * hop_ratio)
-    hop_length: int  # Samples between consecutive frames; calculated from hop_ratio
-    window: str  # Window type for FFT ('hann', 'hamming', 'blackman', etc.)
-    use_log_frequency: bool  # Logarithmic y-axis for better low-freq resolution
-    fmin: Optional[float]  # Minimum frequency to display (Hz)
-    fmax: Optional[float]  # Maximum frequency to display (Hz)
-    n_mels: int  # Number of Mel bands (only for Mel spectrogram)
-    power: float  # Power for amplitude -> energy conversion (Mel)
-    pcen_enabled: bool  # Per-Channel Energy Normalization
-    per_frequency_normalization: bool  # Normalize each frequency band
-    ref_power: float  # Reference power for dB conversion
-    top_db: Optional[float]  # Max dB for clipping
-    dynamic_range: float  # Contrast dynamic range in dB
-    contrast_percentile: Optional[float]  # Optional percentile clipping
-    colormap: str  # Colormap for spectrogram
-    fig_width: float  # Figure width in inches
-    fig_height: float  # Figure height in inches
-    dpi: int  # Figure DPI
-    max_duration_sec: Optional[float]  # Max duration to process (None = full)
-    title: str  # Figure title
-    pcen_bias: float = 2.0  # Bias term for PCEN
-    pcen_gain: float = 0.98  # Gain (alpha) for PCEN
-    noise_reduction: bool = False  # Apply lightweight spectral noise gating
-    high_pass_filter: bool = False  # Enable simple HPF before spectrogram
-    high_pass_cutoff: float = 300.0  # HPF cutoff frequency in Hz
+    Defaults are tuned for bird song / syllable visualization:
+    - good time resolution
+    - sharp spectral contrast
+    - PCEN-compatible
+    - lightweight enough for Raspberry Pi
+    """
 
-    # New parameters for segment detection
-    rms_frame_length: int = 1024  # Number of samples per RMS frame
-    rms_threshold: float = 0.2  # RMS threshold (fraction of max RMS) to detect segments
-    min_segment_duration: float = 0.05  # Minimum segment duration in seconds
-    min_silence_duration: float = 0.05  # Minimum silence to split segments in seconds
-    segment_directory: str = "experimental/segments"  # Legacy placeholder (no WAV export)
+    # I/O
+    input_directory: Path
+    output_directory: Path
 
-    sigmoid_k: float = 20.0  # Steepness of sigmoid for RMS soft-thresholding
-    overlay_segments: bool = False  # Whether to overlay detected segments on the spectrogram
+    # Transform
+    transform: str = "mel"  # 'mel', 'stft', or 'cqt'
+    sample_rate: int = 48000
+
+    # FFT / time-frequency resolution
+    n_fft: int = 4096
+    hop_ratio: float = 0.125  # hop_length = n_fft * hop_ratio
+    hop_length: int = 512  # explicit, kept in sync with hop_ratio
+    window: str = "hann"
+
+    # Frequency axis
+    use_log_frequency: bool = False  # mel already provides perceptual scaling
+    fmin: Optional[float] = 2000.0
+    fmax: Optional[float] = 9500.0
+
+    # Mel configuration
+    n_mels: int = 256
+    power: float = 1.0  # IMPORTANT: PCEN expects ~1.0, not 2.0
+
+    # PCEN
+    pcen_enabled: bool = False
+    pcen_bias: float = 3.0        # lighter background
+    pcen_gain: float = 0.7        # less aggressive normalization
+
+    # Linear / dB pipeline (ignored when PCEN is enabled)
+    per_frequency_normalization: bool = False
+    ref_power: float = 1.0
+    top_db: Optional[float] = 60.0
+    dynamic_range: float = 45.0
+    contrast_percentile: Optional[float] = None
+
+    # Visualization
+    colormap: str = "gray"
+    fig_width: float = 10.0
+    fig_height: float = 4.5
+    dpi: int = 150
+    title: str = "Experimental Spectrogram"
+
+    # Processing limits
+    max_duration_sec: Optional[float] = None
+
+    # Optional preprocessing
+    noise_reduction: bool = False  # lightweight spectral gating
+    high_pass_filter: bool = False
+    high_pass_cutoff: float = 300.0
+
+    # Segment / syllable detection (RMS-based)
+    rms_frame_length: int = 2048
+    rms_threshold: float = 0.10
+    min_segment_duration: float = 0.05
+    min_silence_duration: float = 0.05
+    segment_directory: str = "experimental/segments"  # legacy placeholder
+
+    # Soft thresholding & overlays
+    sigmoid_k: float = 0.15
+    overlay_segments: bool = False
 
     @classmethod
     def from_dict(cls, data: Dict) -> "SpectrogramConfig":
