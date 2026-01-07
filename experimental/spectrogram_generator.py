@@ -21,6 +21,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import colors as mcolors
 import numpy as np
+from scipy import signal
 from matplotlib.patches import Rectangle
 from PIL import Image, UnidentifiedImageError
 
@@ -93,6 +94,11 @@ class SpectrogramConfig:
     dpi: int  # Figure DPI
     max_duration_sec: Optional[float]  # Max duration to process (None = full)
     title: str  # Figure title
+    pcen_bias: float = 2.0  # Bias term for PCEN
+    pcen_gain: float = 0.98  # Gain (alpha) for PCEN
+    noise_reduction: bool = False  # Apply lightweight spectral noise gating
+    high_pass_filter: bool = False  # Enable simple HPF before spectrogram
+    high_pass_cutoff: float = 300.0  # HPF cutoff frequency in Hz
 
     # New parameters for segment detection
     rms_frame_length: int = 1024  # Number of samples per RMS frame
@@ -142,13 +148,18 @@ class SpectrogramConfig:
             dpi=int(data.get("dpi", 300)),
             max_duration_sec=None
             if data.get("max_duration_sec") in (None, "")
-            else float(data["max_duration_sec"]),
-            title=str(data.get("title", "Experimental Spectrogram")),
-            rms_frame_length=int(data.get("rms_frame_length", 1024)),
-            rms_threshold=float(data.get("rms_threshold", 0.2)),
-            min_segment_duration=float(data.get("min_segment_duration", 0.05)),
-            min_silence_duration=float(data.get("min_silence_duration", 0.05)),
-            segment_directory=str(data.get("segment_directory", "experimental/segments")),
+             else float(data["max_duration_sec"]),
+             title=str(data.get("title", "Experimental Spectrogram")),
+             pcen_bias=float(data.get("pcen_bias", 2.0)),
+             pcen_gain=float(data.get("pcen_gain", 0.98)),
+             noise_reduction=bool(data.get("noise_reduction", False)),
+             high_pass_filter=bool(data.get("high_pass_filter", False)),
+             high_pass_cutoff=float(data.get("high_pass_cutoff", 300.0)),
+             rms_frame_length=int(data.get("rms_frame_length", 1024)),
+             rms_threshold=float(data.get("rms_threshold", 0.2)),
+             min_segment_duration=float(data.get("min_segment_duration", 0.05)),
+             min_silence_duration=float(data.get("min_silence_duration", 0.05)),
+             segment_directory=str(data.get("segment_directory", "experimental/segments")),
             sigmoid_k=float(data.get("sigmoid_k", 20.0)),
             overlay_segments=bool(data.get("overlay_segments", False)),
         )
@@ -186,6 +197,11 @@ class SpectrogramConfig:
             "dpi": self.dpi,
             "max_duration_sec": self.max_duration_sec,
             "title": self.title,
+            "pcen_bias": self.pcen_bias,
+            "pcen_gain": self.pcen_gain,
+            "noise_reduction": self.noise_reduction,
+            "high_pass_filter": self.high_pass_filter,
+            "high_pass_cutoff": self.high_pass_cutoff,
             "rms_frame_length": self.rms_frame_length,
             "rms_threshold": self.rms_threshold,
             "min_segment_duration": self.min_segment_duration,
@@ -221,6 +237,26 @@ def _trim_audio(y: np.ndarray, sr: int, max_duration_sec: Optional[float]) -> np
 def _sigmoid(x: np.ndarray, k: float = 20.0) -> np.ndarray:
     """Sigmoid function for soft-thresholding (reduces vertical streak artifacts)."""
     return 1 / (1 + np.exp(-k * (x - 0.5)))  # assumes x normalized [0,1]
+
+
+def _apply_high_pass_filter(y: np.ndarray, sr: int, cutoff_hz: float) -> np.ndarray:
+    """Lightweight HPF using a 4th-order Butterworth filter."""
+    if cutoff_hz <= 0.0 or cutoff_hz >= sr / 2:
+        return y
+    sos = signal.butter(4, cutoff_hz, btype="highpass", fs=sr, output="sos")
+    return signal.sosfilt(sos, y)
+
+
+def _apply_noise_reduction(y: np.ndarray, n_fft: int, hop_length: int) -> np.ndarray:
+    """Simple spectral gating based on median noise profile."""
+    if y.size == 0:
+        return y
+    D = librosa.stft(y, n_fft=n_fft, hop_length=hop_length)
+    magnitude = np.abs(D)
+    noise_profile = np.percentile(magnitude, 25, axis=1, keepdims=True)
+    reduced_mag = np.maximum(magnitude - noise_profile, 0.0)
+    phased = reduced_mag * np.exp(1j * np.angle(D))
+    return librosa.istft(phased, hop_length=hop_length, length=len(y))
 
 
 def detect_segments(y: np.ndarray, sr: int, cfg: SpectrogramConfig) -> List[Tuple[int, int]]:
@@ -294,6 +330,12 @@ def generate_spectrogram(
     output_dir.mkdir(parents=True, exist_ok=True)
     y, sr = librosa.load(wav_path, sr=cfg.sample_rate, mono=True)
     y = _trim_audio(y, sr, cfg.max_duration_sec)
+    hop_length = _calculate_hop_length(cfg.n_fft, cfg.hop_ratio, getattr(cfg, "hop_length", None))
+
+    if cfg.high_pass_filter:
+        y = _apply_high_pass_filter(y, sr, cfg.high_pass_cutoff)
+    if cfg.noise_reduction:
+        y = _apply_noise_reduction(y, cfg.n_fft, hop_length)
 
     # Determine frequency bounds
     nyquist = sr / 2.0
@@ -303,11 +345,15 @@ def generate_spectrogram(
     if effective_fmax <= effective_fmin:
         effective_fmin = max(0.0, effective_fmax * 0.5)
 
-    hop_length = _calculate_hop_length(cfg.n_fft, cfg.hop_ratio, getattr(cfg, "hop_length", None))
-
     # Generate spectrogram
+    pcen_kwargs = {
+        "sr": sr,
+        "hop_length": hop_length,
+        "gain": cfg.pcen_gain,
+        "bias": cfg.pcen_bias,
+    }
     if cfg.transform.lower() == "mel":
-        S = librosa.feature.melspectrogram(
+        S_base = librosa.feature.melspectrogram(
             y=y,
             sr=sr,
             n_fft=cfg.n_fft,
@@ -319,20 +365,26 @@ def generate_spectrogram(
             power=cfg.power,
         )
         if cfg.pcen_enabled:
-            S = librosa.pcen(S + 1e-6, sr=sr, hop_length=hop_length)
-        S_db = librosa.power_to_db(S, ref=cfg.ref_power, top_db=cfg.top_db)
+            S_db = librosa.pcen(S_base + 1e-6, **pcen_kwargs)
+        else:
+            S_db = librosa.power_to_db(S_base, ref=cfg.ref_power, top_db=cfg.top_db)
         y_axis = "mel"
     elif cfg.transform.lower() == "cqt":
         bins_per_octave = 48
         n_bins = int(np.ceil(np.log2(effective_fmax / (effective_fmin or 200.0)) * bins_per_octave))
         C = np.abs(librosa.cqt(y, sr=sr, hop_length=hop_length, fmin=effective_fmin or 200.0, n_bins=n_bins, bins_per_octave=bins_per_octave, window=cfg.window))
         if cfg.pcen_enabled:
-            C = librosa.pcen(C + 1e-6, sr=sr, hop_length=hop_length)
-        S_db = librosa.amplitude_to_db(C, ref=cfg.ref_power, top_db=cfg.top_db)
+            S_db = librosa.pcen((C ** 2) + 1e-6, **pcen_kwargs)
+        else:
+            S_db = librosa.amplitude_to_db(C, ref=cfg.ref_power, top_db=cfg.top_db)
         y_axis = "cqt_hz"
     else:
         STFT = librosa.stft(y, n_fft=cfg.n_fft, hop_length=hop_length, window=cfg.window, center=True)
-        S_db = librosa.amplitude_to_db(np.abs(STFT), ref=cfg.ref_power, top_db=cfg.top_db)
+        if cfg.pcen_enabled:
+            magnitude = np.abs(STFT) ** 2
+            S_db = librosa.pcen(magnitude + 1e-6, **pcen_kwargs)
+        else:
+            S_db = librosa.amplitude_to_db(np.abs(STFT), ref=cfg.ref_power, top_db=cfg.top_db)
         y_axis = "log" if cfg.use_log_frequency else "linear"
 
     # Per-frequency normalization
@@ -342,12 +394,19 @@ def generate_spectrogram(
         S_db = (S_db - mean) / std
 
     # Contrast clipping
-    if cfg.contrast_percentile is not None:
-        vmax = np.percentile(S_db, cfg.contrast_percentile)
-        vmin = vmax - cfg.dynamic_range
+    if cfg.pcen_enabled:
+        if cfg.contrast_percentile is not None:
+            vmax = np.percentile(S_db, cfg.contrast_percentile)
+        else:
+            vmax = np.max(S_db)
+        vmin = np.min(S_db)
     else:
-        vmax = np.max(S_db)
-        vmin = vmax - cfg.dynamic_range
+        if cfg.contrast_percentile is not None:
+            vmax = np.percentile(S_db, cfg.contrast_percentile)
+            vmin = vmax - cfg.dynamic_range
+        else:
+            vmax = np.max(S_db)
+            vmin = vmax - cfg.dynamic_range
     S_db = np.clip(S_db, vmin, None)
 
     # Detect segments
