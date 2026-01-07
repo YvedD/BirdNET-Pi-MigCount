@@ -28,6 +28,7 @@ from PIL import Image, UnidentifiedImageError
 EXPERIMENT_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = EXPERIMENT_ROOT.parent
 CONFIG_PATH = EXPERIMENT_ROOT / "spectrogram_config.json"
+NOISE_PROFILE_PERCENTILE = 25
 
 
 def _calculate_hop_length(n_fft: int, hop_ratio: float, provided: Optional[int] = None) -> int:
@@ -253,7 +254,7 @@ def _apply_noise_reduction(y: np.ndarray, n_fft: int, hop_length: int) -> np.nda
         return y
     D = librosa.stft(y, n_fft=n_fft, hop_length=hop_length)
     magnitude = np.abs(D)
-    noise_profile = np.percentile(magnitude, 25, axis=1, keepdims=True)
+    noise_profile = np.percentile(magnitude, NOISE_PROFILE_PERCENTILE, axis=1, keepdims=True)
     reduced_mag = np.maximum(magnitude - noise_profile, 0.0)
     phased = reduced_mag * np.exp(1j * np.angle(D))
     return librosa.istft(phased, hop_length=hop_length, length=len(y))

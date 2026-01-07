@@ -336,6 +336,7 @@ def render():
                 "Reference power (dB)",
                 value=float(current_value("ref_power", working_cfg.get("ref_power", 1.0))),
                 min_value=0.0001,
+                disabled=pcen_enabled,
                 key="ref_power",
                 help="Reference value for amplitude-to-dB conversion."
             )
@@ -345,6 +346,7 @@ def render():
                 value=float(current_value("top_db", working_cfg.get("top_db") or 45.0)),
                 min_value=1.0,
                 max_value=120.0,
+                disabled=pcen_enabled,
                 key="top_db",
                 help="Clips the dynamic range of the spectrogram for visualization."
             )
@@ -352,6 +354,7 @@ def render():
                 "Dynamic range (dB)",
                 value=float(current_value("dynamic_range", working_cfg.get("dynamic_range", 80.0))),
                 min_value=10.0,
+                disabled=pcen_enabled,
                 key="dynamic_range",
                 help="Contrast between max and min dB displayed in image."
             )
