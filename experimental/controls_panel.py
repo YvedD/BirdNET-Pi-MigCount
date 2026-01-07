@@ -454,24 +454,15 @@ def render():
 
     with preview_col:
         st.subheader("Live preview")
-        preview_options = [str(p) for p in wav_pool]
-        preview_label = lambda p: Path(p).name  # noqa: E731
-        selected_index = preview_options.index(st.session_state.preview_wav) if preview_options and st.session_state.get("preview_wav") in preview_options else 0 if preview_options else 0
-        selected_wav = st.selectbox(
-            "Preview WAV",
-            options=preview_options,
-            index=selected_index if preview_options else 0,
-            format_func=preview_label,
-            key="preview_wav",
-        ) if preview_options else None
-
         current_cfg.output_directory.mkdir(parents=True, exist_ok=True)
         Path(current_cfg.segment_directory).mkdir(parents=True, exist_ok=True)
 
+        uploaded_path = None
         uploaded = st.file_uploader("Upload a WAV to generate a fresh PNG", type=["wav"])
         if uploaded is not None:
             wav_path = current_cfg.output_directory / f"user_{uploaded.name}"
             wav_path.write_bytes(uploaded.read())
+            uploaded_path = wav_path
             st.session_state.preview_wav = str(wav_path)
             st.session_state.force_refresh = True
             png_path = generate_spectrogram(
@@ -485,7 +476,29 @@ def render():
             st.session_state.last_preview_wav = wav_path
             st.success(f"Generated {png_path.name}")
             st.image(str(png_path))
-        else:
+
+        preview_options = [str(p) for p in wav_pool]
+        if uploaded_path:
+            preview_options.append(str(uploaded_path))
+        if st.session_state.get("preview_wav"):
+            preview_options.append(st.session_state.preview_wav)
+        preview_options_list = list(dict.fromkeys(preview_options))
+
+        def preview_label(p: str) -> str:
+            return Path(p).name
+
+        selected_index = 0
+        if preview_options_list and st.session_state.get("preview_wav") in preview_options_list:
+            selected_index = preview_options_list.index(st.session_state.preview_wav)
+        selected_wav = st.selectbox(
+            "Preview WAV",
+            options=preview_options_list,
+            index=selected_index,
+            format_func=preview_label,
+            key="preview_wav",
+        ) if preview_options_list else None
+
+        if uploaded is None:
             preview_cfg_state: Dict = st.session_state["working_config"]
             cached_preview = st.session_state.get("preview_path")
             last_preview_wav = st.session_state.get("last_preview_wav")
