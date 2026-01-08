@@ -3,16 +3,15 @@ APP_DESCRIPTION = """
 Streamlit UI for experimenting with spectrogram parameters and syllable segmentation.
 
 Features:
-- Adjust spectrogram transforms (mel, STFT, CQT)
+- Adjust mel or STFT transforms
 - Tune windowing, FFT size, hop ratio (overlap)
-- Control frequency bounds, scaling, and power
-- Enable PCEN and per-frequency normalization
-- Detect segments (syllables/notes) and visualize them on the spectrogram
-- Sigmoid soft-threshold for smoothing segment edges
-- Optional overlay of segments on the spectrogram image
+- Control frequency bounds, mel bins, scaling, and power
+- Enable PCEN with optional dB shaping
+- Optional preprocessing: lightweight noise reduction and HPF
 - Visualize results directly in the UI
 - Upload single WAVs for testing
 - Save configuration for reproducible experiments
+- Export a human-readable snapshot of the current settings
 
 All changes are saved to experimental/spectrogram_config.json
 and isolated from BirdNET production pipeline.
@@ -38,58 +37,59 @@ from experimental.spectrogram_generator import (
 )
 
 PRESET_SIZES = [256, 512, 1024, 2048, 4096, 8192]
-MEL_OPTIONS = PRESET_SIZES
+MEL_OPTIONS = [128, 512, 1024, 2048, 4096]
+WINDOW_OPTIONS = ["hann", "hamming", "blackman"]
+TRANSFORM_OPTIONS = ["mel", "stft"]
+HOP_MIN = 0.03125
+HOP_MAX = 0.5
+FMIN_RANGE = (500.0, 3000.0)
+FMAX_RANGE = (8000.0, 16000.0)
 COLORMAP_OPTIONS = ["soft_gray", "viridis", "plasma", "magma", "inferno", "cividis", "gray_r"]
 COMPACT_STYLE = """
 <style>
-    :root {
-        --primary-color:#5c7cfa;
-        --text-color:#1f2937;
-    }
-    body, .stApp {
-        background-color:#f7f9fc;
-        color:var(--text-color);
-    }
-    div.block-container{padding-top:0.35rem;padding-bottom:0.6rem;max-width:1600px;}
-    section[data-testid="stSidebar"]{font-size:0.85rem;}
+    div.block-container{padding-top:0.2rem;padding-bottom:0.35rem;max-width:1400px;}
+    section[data-testid="stSidebar"]{font-size:0.82rem;}
     div[data-testid="stMarkdown"] p, label, .stSelectbox label, .stSlider label,
-    .stNumberInput label, .stTextInput label, .stCheckbox label{font-size:0.85rem;margin-bottom:0.2rem;}
-    .stSelectbox, .stNumberInput, .stSlider, .stTextInput, .stCheckbox{padding-top:0.1rem;padding-bottom:0.1rem;}
-    h1, h2, h3, h4{font-size:1.05rem;margin-bottom:0.4rem;}
-    .stButton>button{padding:0.35rem 0.4rem;font-size:0.9rem;}
-    [data-testid="stHorizontalBlock"]{row-gap:0.2rem;}
-    .stTabs [data-baseweb="tab-list"]{gap:0.25rem;}
+    .stNumberInput label, .stTextInput label, .stCheckbox label{font-size:0.82rem;margin-bottom:0.15rem;}
+    .stSelectbox, .stNumberInput, .stSlider, .stTextInput, .stCheckbox{padding-top:0.05rem;padding-bottom:0.05rem;}
+    h1, h2, h3, h4{font-size:1rem;margin-bottom:0.3rem;}
+    .stButton>button{padding:0.3rem 0.35rem;font-size:0.88rem;}
+    [data-testid="stHorizontalBlock"]{row-gap:0.15rem;}
+    .stSlider [data-baseweb="slider"]{height:24px;}
 </style>
 """
 
 HARD_DEFAULTS = {
     "input_directory": "experimental/input",
     "output_directory": "experimental/output",
-    "transform": "stft",
+    "transform": "mel",
     "sample_rate": 48000,
-    "n_fft": 4096,
-    "hop_ratio": 0.125,
-    "hop_length": 512,
+    "n_fft": 2048,
+    "hop_ratio": 0.0625,
+    "hop_length": 128,
     "window": "hann",
     "use_log_frequency": True,
-    "fmin": 1000.0,
+    "fmin": 1200.0,
     "fmax": 12000.0,
-    "n_mels": 512,
-    "power": 2.0,
+    "n_mels": 1024,
+    "power": 1.0,
     "pcen_enabled": False,
     "pcen_bias": 2.0,
-    "pcen_gain": 0.98,
+    "pcen_gain": 0.85,
+    "pcen_apply_top_db": False,
+    "pcen_apply_dynamic_range": False,
+    "pcen_apply_ref_power": False,
     "per_frequency_normalization": False,
     "ref_power": 1.0,
     "top_db": 80,
-    "dynamic_range": 80,
+    "dynamic_range": 60,
     "contrast_percentile": None,
     "noise_reduction": False,
     "high_pass_filter": False,
-    "high_pass_cutoff": 300.0,
+    "high_pass_cutoff": 800.0,
     "colormap": "soft_gray",
-    "fig_width": 12.0,
-    "fig_height": 6.0,
+    "fig_width": 10.0,
+    "fig_height": 5.0,
     "dpi": 300,
     "max_duration_sec": None,
     "title": "Experimental Spectrogram",
@@ -148,34 +148,83 @@ def render():
 
     controls_col, preview_col = st.columns([1.05, 0.95])
 
+    def _export_settings(cfg: SpectrogramConfig) -> Path:
+        desktop = Path.home() / "Desktop"
+        desktop.mkdir(parents=True, exist_ok=True)
+        out_path = desktop / "BirdNET-Pi-MigCount-settings.txt"
+        lines = [
+            "BirdNET-Pi-MigCount spectrogram settings",
+            f"Transform: {cfg.transform}",
+            f"Sample rate: {cfg.sample_rate} Hz",
+            f"Window: {cfg.window}",
+            f"FFT size: {cfg.n_fft}",
+            f"Hop ratio: {cfg.hop_ratio:.5f}",
+            f"Hop length: {cfg.hop_length} samples",
+            f"Frequency range: {cfg.fmin} Hz – {cfg.fmax} Hz",
+            f"Mel bins: {cfg.n_mels}",
+            f"Power: {cfg.power}",
+            f"PCEN enabled: {cfg.pcen_enabled}",
+            f"PCEN bias: {cfg.pcen_bias}",
+            f"PCEN gain/alpha: {cfg.pcen_gain}",
+            f"PCEN apply top_dB: {cfg.pcen_apply_top_db}",
+            f"PCEN apply dynamic range: {cfg.pcen_apply_dynamic_range}",
+            f"PCEN apply ref power: {cfg.pcen_apply_ref_power}",
+            f"Top dB (classic dB): {cfg.top_db}",
+            f"Dynamic range (classic dB): {cfg.dynamic_range}",
+            f"Reference power: {cfg.ref_power}",
+            f"Noise reduction enabled: {cfg.noise_reduction}",
+            f"High-pass filter enabled: {cfg.high_pass_filter}",
+            f"HPF cutoff: {cfg.high_pass_cutoff} Hz",
+            f"Output directory: {cfg.output_directory}",
+        ]
+        out_path.write_text("\n".join(lines), encoding="utf-8")
+        return out_path
+
     with controls_col:
-        action_cols = st.columns(3)
+        action_cols = st.columns(4)
         with action_cols[0]:
             st.button("Reset Defaults", on_click=reset_defaults, use_container_width=True)
         with action_cols[1]:
             save_clicked = st.button("Save configuration", use_container_width=True)
         with action_cols[2]:
+            keep_settings = st.button("Keep these settings", use_container_width=True)
+        with action_cols[3]:
             generate_all = st.button("Genereer PNGs", use_container_width=True)
 
-        st.subheader("Audio & Transform")
-        transform_default = current_value("transform", working_cfg.get("transform", "stft"))
+        st.subheader("Spectrogram core")
+        transform_default = current_value("transform", working_cfg.get("transform", "mel"))
+        if str(transform_default) not in TRANSFORM_OPTIONS:
+            transform_default = TRANSFORM_OPTIONS[0]
+            st.session_state.transform = transform_default
         sample_rate_default = int(current_value("sample_rate", working_cfg.get("sample_rate", 48000)))
-        transform_cols = st.columns(2)
-        with transform_cols[0]:
+        if sample_rate_default not in (24000, 48000):
+            sample_rate_default = 48000
+            st.session_state.sample_rate = sample_rate_default
+        window_default = str(current_value("window", working_cfg.get("window", "hann")))
+        core_cols = st.columns(3)
+        with core_cols[0]:
             transform = st.selectbox(
                 "Transform",
-                ["mel", "stft", "cqt"],
-                index=["mel", "stft", "cqt"].index(str(transform_default)),
+                TRANSFORM_OPTIONS,
+                index=TRANSFORM_OPTIONS.index(str(transform_default)),
                 key="transform",
-                help="Select type of spectrogram. 'mel' emphasizes perceptual frequencies, 'cqt' is logarithmic per octave, 'stft' is linear."
+                help="Choose mel or linear STFT representation."
             )
-        with transform_cols[1]:
+        with core_cols[1]:
             sample_rate = st.selectbox(
                 "Sample rate (Hz)",
                 [24000, 48000],
                 index=[24000, 48000].index(sample_rate_default),
                 key="sample_rate",
-                help="Audio sampling rate. Higher = better frequency resolution at high frequencies, but larger files."
+                help="Higher sample rate keeps more high-frequency detail."
+            )
+        with core_cols[2]:
+            window = st.selectbox(
+                "Window",
+                WINDOW_OPTIONS,
+                index=WINDOW_OPTIONS.index(window_default if window_default in WINDOW_OPTIONS else WINDOW_OPTIONS[0]),
+                key="window",
+                help="Windowing function for FFT."
             )
 
         fft_cols = st.columns(3)
@@ -189,46 +238,85 @@ def render():
                 PRESET_SIZES,
                 index=PRESET_SIZES.index(int(n_fft_default)),
                 key="n_fft",
-                help="Number of FFT points. Larger = better frequency resolution, lower temporal resolution."
+                help="Number of FFT points. Larger = sharper frequency resolution."
             )
-        hop_ratio_default = float(current_value("hop_ratio", working_cfg.get("hop_ratio", 0.125)))
+        hop_ratio_default = float(current_value("hop_ratio", working_cfg.get("hop_ratio", 0.0625)))
         with fft_cols[1]:
             hop_ratio = st.slider(
                 "Hop ratio",
-                0.05,
-                0.25,
-                hop_ratio_default,
-                step=0.01,
+                HOP_MIN,
+                HOP_MAX,
+                min(max(hop_ratio_default, HOP_MIN), HOP_MAX),
+                step=0.001,
+                format="%.5f",
                 key="hop_ratio",
-                help="Fraction of FFT size used as hop (controls overlap)."
+                help="Fraction of FFT size used as hop (controls overlap and temporal detail)."
             )
-        window_default = str(current_value("window", working_cfg.get("window", "hann")))
+        hop_length_calc = int(n_fft * hop_ratio)
         with fft_cols[2]:
-            window = st.selectbox(
-                "Window",
-                ["hann", "hamming", "blackman", "bartlett"],
-                index=["hann", "hamming", "blackman", "bartlett"].index(window_default),
-                key="window",
-                help="Windowing function for FFT. Affects spectral leakage and sharpness of frequency peaks."
+            st.metric("Hop length (samples)", hop_length_calc)
+
+        st.subheader("Frequency & resolution")
+        fmin_default = float(current_value("fmin", working_cfg.get("fmin") or FMIN_RANGE[0]))
+        fmax_default = float(current_value("fmax", working_cfg.get("fmax") or FMAX_RANGE[1]))
+        freq_cols = st.columns(3)
+        with freq_cols[0]:
+            fmin = st.slider(
+                "Minimum frequency (Hz)",
+                FMIN_RANGE[0],
+                FMIN_RANGE[1],
+                min(max(fmin_default, FMIN_RANGE[0]), FMIN_RANGE[1]),
+                step=50.0,
+                key="fmin",
+            )
+        with freq_cols[1]:
+            fmax = st.slider(
+                "Maximum frequency (Hz)",
+                FMAX_RANGE[0],
+                FMAX_RANGE[1],
+                min(max(fmax_default, FMAX_RANGE[0]), FMAX_RANGE[1]),
+                step=250.0,
+                key="fmax",
+            )
+            if fmax <= fmin:
+                fmax = min(FMAX_RANGE[1], fmin + 500.0)
+                st.session_state.fmax = fmax
+        n_mels_default = current_value("n_mels", working_cfg.get("n_mels", MEL_OPTIONS[2]))
+        if int(n_mels_default) not in MEL_OPTIONS:
+            n_mels_default = MEL_OPTIONS[2]
+            st.session_state.n_mels = n_mels_default
+        with freq_cols[2]:
+            n_mels = st.selectbox(
+                "Mel bins",
+                MEL_OPTIONS,
+                index=MEL_OPTIONS.index(int(n_mels_default)),
+                key="n_mels",
+                help="Higher values reduce blocky low-frequency artefacts."
             )
 
-        st.subheader("Frequency & Scaling")
-        log_cols = st.columns(2)
-        with log_cols[0]:
-            use_log_frequency_default = bool(current_value("use_log_frequency", working_cfg.get("use_log_frequency", True)))
-            use_log_frequency = st.checkbox(
-                "Log frequency axis",
-                value=use_log_frequency_default,
-                key="use_log_frequency",
-                help="Display y-axis on logarithmic scale. Useful for bird sounds with wide frequency range."
+        st.subheader("Scaling")
+        scaling_cols = st.columns(2)
+        with scaling_cols[0]:
+            power = st.slider(
+                "Spectrogram power",
+                0.25,
+                2.0,
+                float(current_value("power", working_cfg.get("power", 1.0))),
+                step=0.05,
+                key="power",
+                help="Exponent applied to magnitude before scaling."
             )
-        with log_cols[1]:
-            pcen_enabled = st.checkbox(
-                "Enable PCEN",
-                value=bool(current_value("pcen_enabled", working_cfg.get("pcen_enabled", False))),
-                key="pcen_enabled",
-                help="Enhances weak signals and suppresses constant background noise."
-            )
+        with scaling_cols[1]:
+            use_log_frequency = transform == "stft"
+            st.caption("Log frequency is auto-enabled for STFT.")
+
+        st.subheader("PCEN")
+        pcen_enabled = st.checkbox(
+            "Enable PCEN",
+            value=bool(current_value("pcen_enabled", working_cfg.get("pcen_enabled", False))),
+            key="pcen_enabled",
+            help="Adaptive gain control to lift weak syllables without crushing peaks."
+        )
         pcen_cols = st.columns(2)
         with pcen_cols[0]:
             pcen_bias = st.slider(
@@ -239,218 +327,104 @@ def render():
                 step=0.1,
                 key="pcen_bias",
                 disabled=not pcen_enabled,
-                help="Bias term added before compression. Higher values reduce gain on quiet regions."
             )
         with pcen_cols[1]:
             pcen_gain = st.slider(
                 "PCEN gain (alpha)",
                 0.1,
                 1.0,
-                float(current_value("pcen_gain", working_cfg.get("pcen_gain", 0.98))),
+                float(current_value("pcen_gain", working_cfg.get("pcen_gain", 0.85))),
                 step=0.01,
                 key="pcen_gain",
                 disabled=not pcen_enabled,
-                help="Controls strength of PCEN automatic gain. Lower values increase compression."
             )
-        filter_cols = st.columns(2)
-        with filter_cols[0]:
+        opt_cols = st.columns(3)
+        with opt_cols[0]:
+            pcen_apply_top_db = st.checkbox(
+                "Apply top dB after PCEN",
+                value=bool(current_value("pcen_apply_top_db", working_cfg.get("pcen_apply_top_db", False))),
+                key="pcen_apply_top_db",
+                disabled=not pcen_enabled,
+            )
+        with opt_cols[1]:
+            pcen_apply_dynamic_range = st.checkbox(
+                "Apply dynamic range after PCEN",
+                value=bool(current_value("pcen_apply_dynamic_range", working_cfg.get("pcen_apply_dynamic_range", False))),
+                key="pcen_apply_dynamic_range",
+                disabled=not pcen_enabled,
+            )
+        with opt_cols[2]:
+            pcen_apply_ref_power = st.checkbox(
+                "Apply ref power after PCEN",
+                value=bool(current_value("pcen_apply_ref_power", working_cfg.get("pcen_apply_ref_power", False))),
+                key="pcen_apply_ref_power",
+                disabled=not pcen_enabled,
+            )
+
+        st.subheader("Classic dB scaling (when PCEN is off)")
+        db_cols = st.columns(3)
+        with db_cols[0]:
+            top_db = st.number_input(
+                "Top dB",
+                min_value=40.0,
+                max_value=100.0,
+                value=float(current_value("top_db", working_cfg.get("top_db", 80.0))),
+                key="top_db",
+                disabled=pcen_enabled,
+            )
+        with db_cols[1]:
+            dynamic_range = st.number_input(
+                "Dynamic range (dB)",
+                min_value=30.0,
+                max_value=80.0,
+                value=float(current_value("dynamic_range", working_cfg.get("dynamic_range", 60.0))),
+                key="dynamic_range",
+                disabled=pcen_enabled,
+            )
+        with db_cols[2]:
+            ref_power = st.number_input(
+                "Reference power",
+                min_value=0.1,
+                max_value=2.0,
+                value=float(current_value("ref_power", working_cfg.get("ref_power", 1.0))),
+                key="ref_power",
+                disabled=pcen_enabled,
+            )
+
+        st.subheader("Preprocessing")
+        pre_cols = st.columns(3)
+        with pre_cols[0]:
             noise_reduction = st.checkbox(
                 "Noise reduction",
                 value=bool(current_value("noise_reduction", working_cfg.get("noise_reduction", False))),
                 key="noise_reduction",
-                help="Apply lightweight spectral noise gating before spectrogram generation."
+                help="Lightweight spectral gating."
             )
-        with filter_cols[1]:
+        with pre_cols[1]:
             high_pass_filter = st.checkbox(
                 "High-pass filter",
                 value=bool(current_value("high_pass_filter", working_cfg.get("high_pass_filter", False))),
                 key="high_pass_filter",
-                help="Software HPF to reduce low-frequency rumble before analysis."
+                help="Suppress rumble below the band of interest."
             )
-            hp_min = 20.0
-            hp_max = max(hp_min + 10.0, float(sample_rate / 2.0 - 200.0))
-            current_cutoff = float(current_value("high_pass_cutoff", working_cfg.get("high_pass_cutoff", 300.0)))
-            if current_cutoff > hp_max:
-                current_cutoff = hp_max
+        with pre_cols[2]:
+            hp_max = min(2000.0, float(sample_rate / 2.0 - 100.0))
+            hpf_default = float(current_value("high_pass_cutoff", working_cfg.get("high_pass_cutoff", 800.0)))
+            if hpf_default > hp_max:
+                hpf_default = hp_max
                 st.session_state.high_pass_cutoff = hp_max
             high_pass_cutoff = st.slider(
                 "HPF cutoff (Hz)",
-                hp_min,
+                500.0,
                 hp_max,
-                current_cutoff,
-                step=10.0,
+                hpf_default,
+                step=25.0,
                 key="high_pass_cutoff",
                 disabled=not high_pass_filter,
-                help="Cutoff frequency for the HPF (applied before spectrogram generation)."
             )
 
-        freq_cols = st.columns(2)
-        with freq_cols[0]:
-            fmin = st.number_input(
-                "Min frequency (Hz)",
-                min_value=0.0,
-                max_value=96000.0,
-                value=float(current_value("fmin", working_cfg.get("fmin") or 1000.0)),
-                key="fmin",
-                help="Lowest frequency to display. Frequencies below this are ignored."
-            )
-            n_mels_default = current_value("n_mels", working_cfg.get("n_mels", MEL_OPTIONS[0]))
-            if int(n_mels_default) not in MEL_OPTIONS:
-                n_mels_default = MEL_OPTIONS[0]
-                st.session_state.n_mels = n_mels_default
-            n_mels = st.selectbox(
-                "Mel bins",
-                MEL_OPTIONS,
-                index=MEL_OPTIONS.index(int(n_mels_default)),
-                key="n_mels",
-                help="Number of frequency bins for Mel-spectrogram. More bins = finer frequency resolution."
-            )
-        with freq_cols[1]:
-            fmax = st.number_input(
-                "Max frequency (Hz)",
-                min_value=0.0,
-                max_value=96000.0,
-                value=float(current_value("fmax", working_cfg.get("fmax") or 12000.0)),
-                key="fmax",
-                help="Highest frequency to display (capped at 16kHz)."
-            )
-            power = st.slider(
-                "Spectrogram power",
-                0.25,
-                2.5,
-                float(current_value("power", working_cfg.get("power", 2.0))),
-                step=0.25,
-                key="power",
-                help="Exponent applied to magnitude. Lower values brighten faint details."
-            )
+        overlay_segments = bool(current_value("overlay_segments", working_cfg.get("overlay_segments", False)))
 
-        norm_cols = st.columns(2)
-        with norm_cols[0]:
-            per_freq_norm = st.checkbox(
-                "Per-frequency normalization",
-                value=bool(current_value("per_frequency_normalization", working_cfg.get("per_frequency_normalization", False))),
-                key="per_frequency_normalization",
-                help="Normalize each frequency band independently. Makes spectrogram contrast more uniform."
-            )
-            ref_power = st.number_input(
-                "Reference power (dB)",
-                value=float(current_value("ref_power", working_cfg.get("ref_power", 1.0))),
-                min_value=0.0001,
-                disabled=pcen_enabled,
-                key="ref_power",
-                help="Reference value for amplitude-to-dB conversion."
-            )
-        with norm_cols[1]:
-            top_db = st.number_input(
-                "Top dB (clipping)",
-                value=float(current_value("top_db", working_cfg.get("top_db") or 45.0)),
-                min_value=1.0,
-                max_value=120.0,
-                disabled=pcen_enabled,
-                key="top_db",
-                help="Clips the dynamic range of the spectrogram for visualization."
-            )
-            dynamic_range = st.number_input(
-                "Dynamic range (dB)",
-                value=float(current_value("dynamic_range", working_cfg.get("dynamic_range", 80.0))),
-                min_value=10.0,
-                disabled=pcen_enabled,
-                key="dynamic_range",
-                help="Contrast between max and min dB displayed in image."
-            )
-
-        st.subheader("Segmentation (syllables)")
-        rms_cols = st.columns(2)
-        rms_default = int(current_value("rms_frame_length", working_cfg.get("rms_frame_length", 1024)))
-        if rms_default not in PRESET_SIZES:
-            rms_default = PRESET_SIZES[2]
-            st.session_state.rms_frame_length = rms_default
-        with rms_cols[0]:
-            rms_frame_length = st.selectbox(
-                "RMS frame (samples)",
-                PRESET_SIZES,
-                index=PRESET_SIZES.index(rms_default),
-                key="rms_frame_length",
-                help="Number of samples per RMS calculation. Larger = smoother energy envelope."
-            )
-            min_segment_duration = st.number_input(
-                "Min segment (s)",
-                value=float(current_value("min_segment_duration", working_cfg.get("min_segment_duration", 0.05))),
-                min_value=0.01,
-                max_value=10.0,
-                key="min_segment_duration",
-                help="Segments shorter than this are ignored."
-            )
-        with rms_cols[1]:
-            rms_threshold = st.slider(
-                "RMS threshold",
-                0.0,
-                1.0,
-                float(current_value("rms_threshold", working_cfg.get("rms_threshold", 0.2))),
-                step=0.01,
-                key="rms_threshold",
-                help="Minimum normalized RMS to consider a segment. Lower = more segments."
-            )
-            min_silence_duration = st.number_input(
-                "Min silence (s)",
-                value=float(current_value("min_silence_duration", working_cfg.get("min_silence_duration", 0.05))),
-                min_value=0.01,
-                max_value=10.0,
-                key="min_silence_duration",
-                help="Minimum silent interval to split two segments."
-            )
-        sigmoid_cols = st.columns(2)
-        with sigmoid_cols[0]:
-            sigmoid_k = st.slider(
-                "Sigmoid k",
-                1.0,
-                50.0,
-                float(current_value("sigmoid_k", working_cfg.get("sigmoid_k", 20.0))),
-                step=1.0,
-                key="sigmoid_k",
-                help="Softens edges of RMS threshold using sigmoid. Higher = sharper cut, lower = smoother detection."
-            )
-        with sigmoid_cols[1]:
-            overlay_segments = st.checkbox(
-                "Overlay segments",
-                value=bool(current_value("overlay_segments", working_cfg.get("overlay_segments", False))),
-                key="overlay_segments",
-                help="Draw detected segment boundaries directly on the spectrogram for visual inspection."
-            )
-
-        st.subheader("Visualization & Output")
-        current_colormap_value = _prefer_light_colormap(st.session_state.get("colormap", working_cfg.get("colormap", COLORMAP_OPTIONS[0])))
-        if current_colormap_value not in COLORMAP_OPTIONS:
-            current_colormap_value = COLORMAP_OPTIONS[0]
-            st.session_state.colormap = current_colormap_value
-        colormap_row = st.columns(2)
-        with colormap_row[0]:
-            colormap = st.selectbox(
-                "Colormap",
-                COLORMAP_OPTIONS,
-                index=COLORMAP_OPTIONS.index(current_colormap_value),
-                key="colormap",
-            )
-            dpi = st.number_input("DPI", value=int(current_value("dpi", working_cfg.get("dpi", 300))), min_value=72, key="dpi")
-        with colormap_row[1]:
-            title = st.text_input("Title", value=str(current_value("title", working_cfg.get("title", ""))), key="title")
-        size_cols = st.columns(2)
-        with size_cols[0]:
-            fig_width = st.number_input("Figure width (inches)", value=float(current_value("fig_width", working_cfg.get("fig_width", 12.0))), key="fig_width")
-        with size_cols[1]:
-            fig_height = st.number_input("Figure height (inches)", value=float(current_value("fig_height", working_cfg.get("fig_height", 6.0))), key="fig_height")
-        path_cols = st.columns(2)
-        with path_cols[0]:
-            output_dir = st.text_input("Output directory", value=str(current_value("output_directory", working_cfg.get("output_directory", ""))), key="output_directory")
-        with path_cols[1]:
-            segment_dir = st.text_input(
-                "Segment directory",
-                value=str(current_value("segment_directory", working_cfg.get("segment_directory", ""))),
-                key="segment_directory",
-                help="Detected segments are only overlayed; WAV export is disabled."
-            )
-
-        hop_length_calc = int(n_fft * hop_ratio)
         st.session_state.hop_length = hop_length_calc
         updated = st.session_state["working_config"].copy()
         updated.update({
@@ -468,26 +442,17 @@ def render():
             "pcen_enabled": pcen_enabled,
             "pcen_bias": pcen_bias,
             "pcen_gain": pcen_gain,
-            "per_frequency_normalization": per_freq_norm,
+            "pcen_apply_top_db": pcen_apply_top_db,
+            "pcen_apply_dynamic_range": pcen_apply_dynamic_range,
+            "pcen_apply_ref_power": pcen_apply_ref_power,
+            "per_frequency_normalization": bool(current_value("per_frequency_normalization", working_cfg.get("per_frequency_normalization", False))),
             "ref_power": ref_power,
             "top_db": top_db,
             "dynamic_range": dynamic_range,
             "noise_reduction": noise_reduction,
             "high_pass_filter": high_pass_filter,
             "high_pass_cutoff": high_pass_cutoff,
-            "rms_frame_length": rms_frame_length,
-            "rms_threshold": rms_threshold,
-            "min_segment_duration": min_segment_duration,
-            "min_silence_duration": min_silence_duration,
-            "sigmoid_k": sigmoid_k,
             "overlay_segments": overlay_segments,
-            "colormap": colormap,
-            "fig_width": fig_width,
-            "fig_height": fig_height,
-            "dpi": dpi,
-            "title": title,
-            "output_directory": output_dir,
-            "segment_directory": segment_dir
         })
         st.session_state["working_config"] = updated
         current_cfg = SpectrogramConfig.from_dict(updated)
@@ -497,6 +462,10 @@ def render():
             save_config(current_cfg)
             st.session_state.base_config = current_cfg.to_dict()
             st.success("Configuration saved!")
+
+        if keep_settings:
+            settings_path = _export_settings(current_cfg)
+            st.success(f"Settings saved to {settings_path}")
 
         if generate_all:
             current_cfg.input_directory.mkdir(parents=True, exist_ok=True)

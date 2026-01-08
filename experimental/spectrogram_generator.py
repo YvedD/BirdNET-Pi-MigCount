@@ -29,11 +29,22 @@ EXPERIMENT_ROOT = Path(__file__).resolve().parent
 PROJECT_ROOT = EXPERIMENT_ROOT.parent
 CONFIG_PATH = EXPERIMENT_ROOT / "spectrogram_config.json"
 NOISE_PROFILE_PERCENTILE = 25
+MIN_HOP_RATIO = 0.03125
+MAX_HOP_RATIO = 0.5
+ALLOWED_MEL_BINS = [128, 512, 1024, 2048, 4096]
 
 
 def _calculate_hop_length(n_fft: int, hop_ratio: float, provided: Optional[int] = None) -> int:
-    hop_from_ratio = int(n_fft * hop_ratio)
+    hop_from_ratio = max(1, int(n_fft * hop_ratio))
     return provided if provided and provided > 0 else hop_from_ratio
+
+
+def _clamp(value: float, min_value: float, max_value: float) -> float:
+    return max(min_value, min(value, max_value))
+
+
+def _nearest_option(options: List[int], value: int) -> int:
+    return min(options, key=lambda opt: abs(opt - value))
 
 
 def _lighten_colormap(name: str, floor: float = 0.2) -> mcolors.Colormap:
@@ -87,36 +98,39 @@ class SpectrogramConfig:
     sample_rate: int = 48000
 
     # FFT / time-frequency resolution
-    n_fft: int = 4096
-    hop_ratio: float = 0.125  # hop_length = n_fft * hop_ratio
-    hop_length: int = 512  # explicit, kept in sync with hop_ratio
+    n_fft: int = 2048
+    hop_ratio: float = 0.0625  # hop_length = n_fft * hop_ratio
+    hop_length: int = 128  # explicit, kept in sync with hop_ratio
     window: str = "hann"
 
     # Frequency axis
     use_log_frequency: bool = False  # mel already provides perceptual scaling
-    fmin: Optional[float] = 2000.0
-    fmax: Optional[float] = 9500.0
+    fmin: Optional[float] = 1200.0
+    fmax: Optional[float] = 12000.0
 
     # Mel configuration
-    n_mels: int = 256
+    n_mels: int = 1024
     power: float = 1.0  # IMPORTANT: PCEN expects ~1.0, not 2.0
-
+ 
     # PCEN
     pcen_enabled: bool = False
-    pcen_bias: float = 3.0        # lighter background
-    pcen_gain: float = 0.7        # less aggressive normalization
-
+    pcen_bias: float = 2.0        # lighter background
+    pcen_gain: float = 0.85        # less aggressive normalization
+    pcen_apply_top_db: bool = False
+    pcen_apply_dynamic_range: bool = False
+    pcen_apply_ref_power: bool = False
+ 
     # Linear / dB pipeline (ignored when PCEN is enabled)
     per_frequency_normalization: bool = False
     ref_power: float = 1.0
-    top_db: Optional[float] = 60.0
-    dynamic_range: float = 45.0
+    top_db: Optional[float] = 80.0
+    dynamic_range: float = 60.0
     contrast_percentile: Optional[float] = None
-
+ 
     # Visualization
     colormap: str = "gray"
     fig_width: float = 10.0
-    fig_height: float = 4.5
+    fig_height: float = 5.0
     dpi: int = 150
     title: str = "Experimental Spectrogram"
 
@@ -126,17 +140,17 @@ class SpectrogramConfig:
     # Optional preprocessing
     noise_reduction: bool = False  # lightweight spectral gating
     high_pass_filter: bool = False
-    high_pass_cutoff: float = 300.0
+    high_pass_cutoff: float = 800.0
 
     # Segment / syllable detection (RMS-based)
-    rms_frame_length: int = 2048
+    rms_frame_length: int = 1024
     rms_threshold: float = 0.10
     min_segment_duration: float = 0.05
     min_silence_duration: float = 0.05
     segment_directory: str = "experimental/segments"  # legacy placeholder
 
     # Soft thresholding & overlays
-    sigmoid_k: float = 0.15
+    sigmoid_k: float = 20.0
     overlay_segments: bool = False
 
     @classmethod
@@ -150,40 +164,43 @@ class SpectrogramConfig:
         return cls(
             input_directory=_resolve(data["input_directory"]),
             output_directory=_resolve(data["output_directory"]),
-            transform=str(data.get("transform", "stft")),
+            transform=str(data.get("transform", "mel")),
             sample_rate=int(data["sample_rate"]),
             n_fft=int(data["n_fft"]),
-            hop_ratio=float(data.get("hop_ratio", 0.125)),
+            hop_ratio=float(data.get("hop_ratio", 0.0625)),
             hop_length=int(
-                data.get("hop_length", int(int(data["n_fft"]) * float(data.get("hop_ratio", 0.125))))
+                data.get("hop_length", int(int(data["n_fft"]) * float(data.get("hop_ratio", 0.0625))))
             ),
             window=str(data["window"]),
             use_log_frequency=bool(data.get("use_log_frequency", True)),
             fmin=None if data.get("fmin") in (None, "") else float(data["fmin"]),
             fmax=None if data.get("fmax") in (None, "") else float(data["fmax"]),
-            n_mels=int(data.get("n_mels", 512)),
-            power=float(data.get("power", 2.0)),
+            n_mels=int(data.get("n_mels", 1024)),
+            power=float(data.get("power", 1.0)),
             pcen_enabled=bool(data.get("pcen_enabled", False)),
             per_frequency_normalization=bool(data.get("per_frequency_normalization", False)),
             ref_power=float(data.get("ref_power", 1.0)),
             top_db=None if data.get("top_db") in (None, "") else float(data["top_db"]),
-            dynamic_range=float(data.get("dynamic_range", 80)),
+             dynamic_range=float(data.get("dynamic_range", 60)),
             contrast_percentile=None
             if data.get("contrast_percentile") in (None, "")
             else float(data["contrast_percentile"]),
-            colormap=str(data.get("colormap", "gray_r")),
-            fig_width=float(data.get("fig_width", 12.0)),
-            fig_height=float(data.get("fig_height", 6.0)),
+             colormap=str(data.get("colormap", "gray_r")),
+             fig_width=float(data.get("fig_width", 10.0)),
+             fig_height=float(data.get("fig_height", 5.0)),
             dpi=int(data.get("dpi", 300)),
             max_duration_sec=None
             if data.get("max_duration_sec") in (None, "")
              else float(data["max_duration_sec"]),
              title=str(data.get("title", "Experimental Spectrogram")),
              pcen_bias=float(data.get("pcen_bias", 2.0)),
-             pcen_gain=float(data.get("pcen_gain", 0.98)),
+              pcen_gain=float(data.get("pcen_gain", 0.85)),
+             pcen_apply_top_db=bool(data.get("pcen_apply_top_db", False)),
+             pcen_apply_dynamic_range=bool(data.get("pcen_apply_dynamic_range", False)),
+             pcen_apply_ref_power=bool(data.get("pcen_apply_ref_power", False)),
              noise_reduction=bool(data.get("noise_reduction", False)),
              high_pass_filter=bool(data.get("high_pass_filter", False)),
-             high_pass_cutoff=float(data.get("high_pass_cutoff", 300.0)),
+              high_pass_cutoff=float(data.get("high_pass_cutoff", 800.0)),
              rms_frame_length=int(data.get("rms_frame_length", 1024)),
              rms_threshold=float(data.get("rms_threshold", 0.2)),
              min_segment_duration=float(data.get("min_segment_duration", 0.05)),
@@ -228,6 +245,9 @@ class SpectrogramConfig:
             "title": self.title,
             "pcen_bias": self.pcen_bias,
             "pcen_gain": self.pcen_gain,
+            "pcen_apply_top_db": self.pcen_apply_top_db,
+            "pcen_apply_dynamic_range": self.pcen_apply_dynamic_range,
+            "pcen_apply_ref_power": self.pcen_apply_ref_power,
             "noise_reduction": self.noise_reduction,
             "high_pass_filter": self.high_pass_filter,
             "high_pass_cutoff": self.high_pass_cutoff,
@@ -357,22 +377,44 @@ def generate_spectrogram(
     """Generate a single spectrogram with optional segment overlay (no WAV export)."""
     output_dir = output_dir or cfg.output_directory
     output_dir.mkdir(parents=True, exist_ok=True)
+    hop_ratio = _clamp(cfg.hop_ratio, MIN_HOP_RATIO, MAX_HOP_RATIO)
+    n_fft = int(cfg.n_fft)
+    hop_length = _calculate_hop_length(n_fft, hop_ratio, getattr(cfg, "hop_length", None))
+    cfg.n_fft = n_fft
+    cfg.hop_ratio = hop_ratio
+    cfg.hop_length = hop_length
     y, sr = librosa.load(wav_path, sr=cfg.sample_rate, mono=True)
     y = _trim_audio(y, sr, cfg.max_duration_sec)
-    hop_length = _calculate_hop_length(cfg.n_fft, cfg.hop_ratio, getattr(cfg, "hop_length", None))
 
     if cfg.high_pass_filter:
-        y = _apply_high_pass_filter(y, sr, cfg.high_pass_cutoff)
+        nyquist = sr / 2.0
+        cutoff = _clamp(cfg.high_pass_cutoff, 500.0, min(2000.0, nyquist - 100.0))
+        y = _apply_high_pass_filter(y, sr, cutoff)
+        cfg.high_pass_cutoff = cutoff
     if cfg.noise_reduction:
-        y = _apply_noise_reduction(y, cfg.n_fft, hop_length)
+        y = _apply_noise_reduction(y, n_fft, hop_length)
+
+    mel_bins = _nearest_option(ALLOWED_MEL_BINS, int(cfg.n_mels))
+    cfg.n_mels = mel_bins
 
     # Determine frequency bounds
     nyquist = sr / 2.0
     freq_cap = min(16000.0, nyquist - 1.0)
-    effective_fmin = cfg.fmin or 0.0
-    effective_fmax = min(cfg.fmax or freq_cap, freq_cap)
+    effective_fmin = _clamp(cfg.fmin or 0.0, 500.0, 3000.0)
+    effective_fmax = _clamp(cfg.fmax or freq_cap, 8000.0, freq_cap)
     if effective_fmax <= effective_fmin:
-        effective_fmin = max(0.0, effective_fmax * 0.5)
+        effective_fmin = max(500.0, effective_fmax - 500.0)
+    cfg.fmin = effective_fmin
+    cfg.fmax = effective_fmax
+
+    power = _clamp(cfg.power, 0.25, 2.0)
+    dynamic_range = _clamp(cfg.dynamic_range, 30.0, 80.0)
+    ref_power = _clamp(cfg.ref_power, 0.1, 2.0)
+    top_db_value = None if cfg.top_db in (None, "") else _clamp(float(cfg.top_db), 40.0, 100.0)
+    cfg.power = power
+    cfg.dynamic_range = dynamic_range
+    cfg.ref_power = ref_power
+    cfg.top_db = top_db_value
 
     # Generate spectrogram
     pcen_kwargs = {
@@ -380,23 +422,24 @@ def generate_spectrogram(
         "hop_length": hop_length,
         "gain": cfg.pcen_gain,
         "bias": cfg.pcen_bias,
+        "time_constant": 0.35,
     }
     if cfg.transform.lower() == "mel":
         S_base = librosa.feature.melspectrogram(
             y=y,
             sr=sr,
-            n_fft=cfg.n_fft,
+            n_fft=n_fft,
             hop_length=hop_length,
             window=cfg.window,
-            n_mels=cfg.n_mels,
+            n_mels=mel_bins,
             fmin=effective_fmin,
             fmax=effective_fmax,
-            power=cfg.power,
+            power=power,
         )
         if cfg.pcen_enabled:
             S_db = librosa.pcen(S_base + 1e-6, **pcen_kwargs)
         else:
-            S_db = librosa.power_to_db(S_base, ref=cfg.ref_power, top_db=cfg.top_db)
+            S_db = librosa.power_to_db(S_base, ref=ref_power, top_db=top_db_value)
         y_axis = "mel"
     elif cfg.transform.lower() == "cqt":
         bins_per_octave = 48
@@ -405,15 +448,15 @@ def generate_spectrogram(
         if cfg.pcen_enabled:
             S_db = librosa.pcen((C ** 2) + 1e-6, **pcen_kwargs)
         else:
-            S_db = librosa.amplitude_to_db(C, ref=cfg.ref_power, top_db=cfg.top_db)
+            S_db = librosa.amplitude_to_db(C, ref=ref_power, top_db=top_db_value)
         y_axis = "cqt_hz"
     else:
-        STFT = librosa.stft(y, n_fft=cfg.n_fft, hop_length=hop_length, window=cfg.window, center=True)
+        STFT = librosa.stft(y, n_fft=n_fft, hop_length=hop_length, window=cfg.window, center=True)
         if cfg.pcen_enabled:
             magnitude = np.abs(STFT) ** 2
             S_db = librosa.pcen(magnitude + 1e-6, **pcen_kwargs)
         else:
-            S_db = librosa.amplitude_to_db(np.abs(STFT), ref=cfg.ref_power, top_db=cfg.top_db)
+            S_db = librosa.amplitude_to_db(np.abs(STFT), ref=ref_power, top_db=top_db_value)
         y_axis = "log" if cfg.use_log_frequency else "linear"
 
     # Per-frequency normalization
@@ -421,22 +464,29 @@ def generate_spectrogram(
         mean = S_db.mean(axis=1, keepdims=True)
         std = S_db.std(axis=1, keepdims=True) + 1e-6
         S_db = (S_db - mean) / std
+    if cfg.pcen_enabled and cfg.pcen_apply_ref_power:
+        pcen_top_db = top_db_value if cfg.pcen_apply_top_db else None
+        S_db = librosa.power_to_db(S_db, ref=ref_power, top_db=pcen_top_db)
 
-    # Contrast clipping
-    if cfg.pcen_enabled:
-        if cfg.contrast_percentile is not None:
-            vmax = np.percentile(S_db, cfg.contrast_percentile)
-        else:
-            vmax = np.max(S_db)
-        vmin = np.min(S_db)
+    finite_mask = np.isfinite(S_db)
+    if finite_mask.any():
+        min_val = float(np.min(S_db[finite_mask]))
+        max_val = float(np.max(S_db[finite_mask]))
     else:
-        if cfg.contrast_percentile is not None:
-            vmax = np.percentile(S_db, cfg.contrast_percentile)
-            vmin = vmax - cfg.dynamic_range
+        min_val = max_val = 0.0
+    S_db = np.nan_to_num(S_db, nan=min_val, posinf=max_val, neginf=min_val)
+
+    vmax = np.percentile(S_db, 99.5) if cfg.contrast_percentile is None else np.percentile(S_db, cfg.contrast_percentile)
+    if cfg.pcen_enabled:
+        if cfg.pcen_apply_dynamic_range:
+            vmin = vmax - dynamic_range
         else:
-            vmax = np.max(S_db)
-            vmin = vmax - cfg.dynamic_range
-    S_db = np.clip(S_db, vmin, None)
+            vmin = np.percentile(S_db, 5.0)
+    else:
+        vmin = vmax - dynamic_range
+    if vmin >= vmax:
+        vmin = vmax - 1.0
+    S_db = np.clip(S_db, vmin, vmax)
 
     # Detect segments
     segments = detect_segments(y, sr, cfg)
@@ -448,7 +498,7 @@ def generate_spectrogram(
     cmap_obj = _resolve_colormap(cfg.colormap)
     img = librosa.display.specshow(S_db, sr=sr, hop_length=hop_length, x_axis="time", y_axis=y_axis, fmin=effective_fmin, fmax=effective_fmax, cmap=cmap_obj, vmin=vmin, vmax=vmax, ax=ax)
     if hasattr(img, "set_interpolation"):
-        img.set_interpolation("nearest")
+        img.set_interpolation("kaiser")
     ax.set_ylim(
         bottom=effective_fmin if effective_fmin > 0.0 else None,
         top=effective_fmax,
