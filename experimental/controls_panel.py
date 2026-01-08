@@ -263,7 +263,7 @@ def render():
         with fft_cols[2]:
             st.metric("Hop length (samples)", hop_length_calc)
             frame_ms = (hop_length_calc / sample_rate) * 1000.0
-            st.caption(f"Frame duur: {frame_ms:.2f} ms")
+            st.caption(f"Frame duration: {frame_ms:.2f} ms")
 
         st.markdown('<div class="section-title">Frequency & resolution</div>', unsafe_allow_html=True)
         fmin_default = float(current_value("fmin", working_cfg.get("fmin") or FMIN_RANGE[0]))
@@ -330,10 +330,10 @@ def render():
                 COLORMAP_OPTIONS,
                 index=COLORMAP_OPTIONS.index(colormap_default),
                 key="colormap",
-                format_func=lambda name: "Lichtgrijs" if name in ("soft_gray", "lichtgrijs") else name,
+                format_func=lambda name: "Lichtgrijs / Light gray" if name in ("soft_gray", "lichtgrijs") else name,
             )
         with appearance_cols[1]:
-            st.caption("Kies een kleurschema, inclusief lichtgrijs of hot.")
+            st.caption("Choose a color scheme, including light gray or hot.")
 
         st.markdown('<div class="section-title">PCEN</div>', unsafe_allow_html=True)
         pcen_enabled = st.checkbox(
