@@ -24,10 +24,10 @@ from .notifications import sendAppriseNotifications
 log = logging.getLogger(__name__)
 NOISE_PROFILE_PERCENTILE = 25
 EPSILON = 1e-6
-# Fixed 2:1 aspect; target width close to prior request with higher DPI for detail
+# Fixed 2:1 aspect with higher DPI for crisper labels
 TARGET_PNG_WIDTH = 944
 TARGET_PNG_HEIGHT = 472
-TARGET_DPI = 200
+TARGET_DPI = 600
 TARGET_FIGSIZE = (TARGET_PNG_WIDTH / TARGET_DPI, TARGET_PNG_HEIGHT / TARGET_DPI)
 
 
@@ -101,7 +101,10 @@ def spectrogram(in_file, title, comment, raw=0):
     )
 
     fig = plt.figure(figsize=TARGET_FIGSIZE, dpi=TARGET_DPI)
-    ax = fig.add_axes([0.08, 0.12, 0.86, 0.8])
+    ax = fig.add_axes([0.10, 0.14, 0.82, 0.78])
+    ax.tick_params(axis="both", labelsize=6)
+    ax.xaxis.label.set_fontsize(7)
+    ax.yaxis.label.set_fontsize(7)
     img_disp = librosa.display.specshow(
         S_pcen,
         sr=sr,
@@ -117,7 +120,8 @@ def spectrogram(in_file, title, comment, raw=0):
     ax.set_xlabel("Time (s)")
     ax.set_ylabel("Frequency (Hz)")
     cbar = fig.colorbar(img_disp, ax=ax, format="%+2.0f")
-    cbar.set_label("PCEN")
+    cbar.ax.tick_params(labelsize=6)
+    cbar.set_label("PCEN", fontsize=7)
     fig.savefig(tmp_file, dpi=TARGET_DPI)
     plt.close(fig)
 
