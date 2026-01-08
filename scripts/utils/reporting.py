@@ -15,6 +15,7 @@ import numpy as np
 import librosa
 import librosa.display  # type: ignore
 import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
 from scipy import signal
 
 from .helpers import get_settings, get_font, DB_PATH
@@ -101,10 +102,12 @@ def spectrogram(in_file, title, comment, raw=0):
     )
 
     fig = plt.figure(figsize=TARGET_FIGSIZE, dpi=TARGET_DPI)
-    ax = fig.add_axes([0.10, 0.14, 0.82, 0.78])
-    ax.tick_params(axis="both", labelsize=6)
+    ax = fig.add_axes([0.10, 0.16, 0.82, 0.74])
+    ax.tick_params(axis="both", labelsize=6, pad=1.5, length=2)
     ax.xaxis.label.set_fontsize(7)
     ax.yaxis.label.set_fontsize(7)
+    ax.xaxis.set_major_locator(mticker.MaxNLocator(6))
+    ax.yaxis.set_major_locator(mticker.MaxNLocator(6))
     img_disp = librosa.display.specshow(
         S_pcen,
         sr=sr,
@@ -117,11 +120,11 @@ def spectrogram(in_file, title, comment, raw=0):
         ax=ax,
     )
     ax.set_title("")
-    ax.set_xlabel("Time (s)")
-    ax.set_ylabel("Frequency (Hz)")
+    ax.set_xlabel("Time (s)", labelpad=2)
+    ax.set_ylabel("Frequency (Hz)", labelpad=2)
     cbar = fig.colorbar(img_disp, ax=ax, format="%+2.0f")
     cbar.ax.tick_params(labelsize=6)
-    cbar.set_label("PCEN", fontsize=7)
+    cbar.set_label("PCEN", fontsize=7, labelpad=2)
     fig.savefig(tmp_file, dpi=TARGET_DPI)
     plt.close(fig)
 
