@@ -22,6 +22,8 @@ from .classes import Detection, ParseFileName
 from .notifications import sendAppriseNotifications
 
 log = logging.getLogger(__name__)
+NOISE_PROFILE_PERCENTILE = 25
+EPSILON = 1e-6
 
 
 def extract(in_file, out_file, start, stop):
@@ -55,7 +57,10 @@ def spectrogram(in_file, title, comment, raw=0):
     fd, tmp_file = tempfile.mkstemp(suffix='.png')
     os.close(fd)
 
-    y, sr = librosa.load(in_file, sr=48000, mono=True)
+    try:
+        y, sr = librosa.load(in_file, sr=48000, mono=True)
+    except Exception as exc:  # pragma: no cover
+        raise RuntimeError(f"Failed to load audio for spectrogram: {exc}") from exc
 
     # High-pass filter at 1000 Hz
     sos = signal.butter(4, 1000, btype="highpass", fs=sr, output="sos")
@@ -66,7 +71,7 @@ def spectrogram(in_file, title, comment, raw=0):
     hop_length = 1228
     D = librosa.stft(y, n_fft=n_fft, hop_length=hop_length, window="hann")
     magnitude = np.abs(D)
-    noise_profile = np.percentile(magnitude, 25, axis=1, keepdims=True)
+    noise_profile = np.percentile(magnitude, NOISE_PROFILE_PERCENTILE, axis=1, keepdims=True)
     reduced_mag = np.maximum(magnitude - noise_profile, 0.0)
     y = librosa.istft(reduced_mag * np.exp(1j * np.angle(D)), hop_length=hop_length, length=len(y))
 
@@ -82,7 +87,7 @@ def spectrogram(in_file, title, comment, raw=0):
         power=1.0,
     )
     S_pcen = librosa.pcen(
-        S_base + 1e-6,
+        S_base + EPSILON,
         sr=sr,
         hop_length=hop_length,
         gain=0.7,
