@@ -103,7 +103,7 @@ def spectrogram(in_file, title, comment, raw=0):
     )
 
     fig = plt.figure(figsize=TARGET_FIGSIZE, dpi=TARGET_DPI)
-    ax = fig.add_axes([0.09, 0.14, 0.84, 0.76])
+    ax = fig.add_axes([0.09, 0.14, 0.84, 0.76], frame_on=True)
     # Aim for ~1px strokes: linewidth in points = 72 / dpi
     px_line = 72.0 / TARGET_DPI
     ax.tick_params(axis="both", labelsize=3, pad=0.8, length=1.2, width=px_line)
