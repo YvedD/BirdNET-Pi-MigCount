@@ -28,7 +28,7 @@ EPSILON = 1e-6
 # Fixed 2:1 aspect with higher DPI for crisper labels
 TARGET_PNG_WIDTH = 944
 TARGET_PNG_HEIGHT = 472
-TARGET_DPI = 600
+TARGET_DPI = 800
 TARGET_FIGSIZE = (TARGET_PNG_WIDTH / TARGET_DPI, TARGET_PNG_HEIGHT / TARGET_DPI)
 
 
@@ -102,12 +102,12 @@ def spectrogram(in_file, title, comment, raw=0):
     )
 
     fig = plt.figure(figsize=TARGET_FIGSIZE, dpi=TARGET_DPI)
-    ax = fig.add_axes([0.10, 0.16, 0.82, 0.74])
-    ax.tick_params(axis="both", labelsize=6, pad=1.5, length=2)
-    ax.xaxis.label.set_fontsize(7)
-    ax.yaxis.label.set_fontsize(7)
-    ax.xaxis.set_major_locator(mticker.MaxNLocator(6))
-    ax.yaxis.set_major_locator(mticker.MaxNLocator(6))
+    ax = fig.add_axes([0.09, 0.14, 0.84, 0.76])
+    ax.tick_params(axis="both", labelsize=5, pad=1.0, length=2)
+    ax.xaxis.label.set_fontsize(6)
+    ax.yaxis.label.set_fontsize(6)
+    ax.xaxis.set_major_locator(mticker.MaxNLocator(7))
+    ax.yaxis.set_major_locator(mticker.MaxNLocator(7))
     img_disp = librosa.display.specshow(
         S_pcen,
         sr=sr,
@@ -120,11 +120,11 @@ def spectrogram(in_file, title, comment, raw=0):
         ax=ax,
     )
     ax.set_title("")
-    ax.set_xlabel("Time (s)", labelpad=2)
-    ax.set_ylabel("Frequency (Hz)", labelpad=2)
+    ax.set_xlabel("Time (s)", labelpad=1.5)
+    ax.set_ylabel("Frequency (Hz)", labelpad=1.5)
     cbar = fig.colorbar(img_disp, ax=ax, format="%+2.0f")
-    cbar.ax.tick_params(labelsize=6)
-    cbar.set_label("PCEN", fontsize=7, labelpad=2)
+    cbar.ax.tick_params(labelsize=5)
+    cbar.set_label("PCEN", fontsize=6, labelpad=1.5)
     fig.savefig(tmp_file, dpi=TARGET_DPI)
     plt.close(fig)
 
