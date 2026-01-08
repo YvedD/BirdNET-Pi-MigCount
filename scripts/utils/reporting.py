@@ -17,6 +17,7 @@ import librosa.display  # type: ignore
 import matplotlib.pyplot as plt
 import matplotlib.ticker as mticker
 from scipy import signal
+plt.rcParams["image.interpolation"] = "lanczos"
 
 from .helpers import get_settings, get_font, DB_PATH
 from .classes import Detection, ParseFileName
@@ -122,11 +123,11 @@ def spectrogram(in_file, title, comment, raw=0):
         fmax=14000,
         cmap="plasma",
         ax=ax,
+        shading="gouraud",
     )
     ax.set_title("")
     ax.set_xlabel("Time (s)", labelpad=1.0)
     ax.set_ylabel("Frequency (Hz)", labelpad=1.0)
-    img_disp.set_interpolation("kaiser")
     cbar = fig.colorbar(img_disp, ax=ax, format="%+2.0f")
     cbar.ax.tick_params(labelsize=3, width=px_line, length=1.2)
     if cbar.outline:
