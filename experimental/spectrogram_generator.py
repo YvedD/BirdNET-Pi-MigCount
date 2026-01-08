@@ -491,9 +491,20 @@ def generate_spectrogram(
     # Plot spectrogram with optional overlay
     fig, ax = plt.subplots(figsize=(cfg.fig_width, cfg.fig_height), dpi=cfg.dpi)
     cmap_obj = _resolve_colormap(cfg.colormap)
-    img = librosa.display.specshow(S_db, sr=sr, hop_length=hop_length, x_axis="time", y_axis=y_axis, fmin=effective_fmin, fmax=effective_fmax, cmap=cmap_obj, vmin=vmin, vmax=vmax, ax=ax)
-    if hasattr(img, "set_interpolation"):
-        img.set_interpolation("kaiser")
+    img = librosa.display.specshow(
+        S_db,
+        sr=sr,
+        hop_length=hop_length,
+        x_axis="time",
+        y_axis=y_axis,
+        fmin=effective_fmin,
+        fmax=effective_fmax,
+        cmap=cmap_obj,
+        vmin=vmin,
+        vmax=vmax,
+        ax=ax,
+        shading="gouraud",
+    )
     ax.set_ylim(
         bottom=effective_fmin if effective_fmin > 0.0 else None,
         top=effective_fmax,
