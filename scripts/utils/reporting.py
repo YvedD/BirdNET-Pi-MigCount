@@ -24,9 +24,10 @@ from .notifications import sendAppriseNotifications
 log = logging.getLogger(__name__)
 NOISE_PROFILE_PERCENTILE = 25
 EPSILON = 1e-6
-TARGET_PNG_WIDTH = 1500
-TARGET_PNG_HEIGHT = 1000  # 3:2 aspect ratio
-TARGET_DPI = 150
+# Fixed 2:1 aspect; target width close to prior request with higher DPI for detail
+TARGET_PNG_WIDTH = 944
+TARGET_PNG_HEIGHT = 472
+TARGET_DPI = 200
 TARGET_FIGSIZE = (TARGET_PNG_WIDTH / TARGET_DPI, TARGET_PNG_HEIGHT / TARGET_DPI)
 
 
