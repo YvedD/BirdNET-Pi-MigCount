@@ -11,6 +11,11 @@ from time import sleep
 
 import requests
 from PIL import Image, ImageDraw, ImageFont
+import numpy as np
+import librosa
+import librosa.display  # type: ignore
+import matplotlib.pyplot as plt
+from scipy import signal
 
 from .helpers import get_settings, get_font, DB_PATH
 from .classes import Detection, ParseFileName
@@ -49,15 +54,63 @@ def extract_safe(in_file, out_file, start, stop):
 def spectrogram(in_file, title, comment, raw=0):
     fd, tmp_file = tempfile.mkstemp(suffix='.png')
     os.close(fd)
-    args = ['sox', '-V1', f'{in_file}', '-n', 'remix', '1', 'rate', '24k', 'spectrogram',
-            '-t', '', '-c', '', '-o', tmp_file]
-    args += ['-r'] if int(raw) else []
 
-    result = subprocess.run(args, check=True, capture_output=True)
-    ret = result.stdout.decode('utf-8')
-    err = result.stderr.decode('utf-8')
-    if err:
-        raise RuntimeError(f'{ret}:\n {err}')
+    y, sr = librosa.load(in_file, sr=48000, mono=True)
+
+    # High-pass filter at 1000 Hz
+    sos = signal.butter(4, 1000, btype="highpass", fs=sr, output="sos")
+    y = signal.sosfilt(sos, y)
+
+    # Noise reduction (simple spectral gating)
+    n_fft = 8192
+    hop_length = 1228
+    D = librosa.stft(y, n_fft=n_fft, hop_length=hop_length, window="hann")
+    magnitude = np.abs(D)
+    noise_profile = np.percentile(magnitude, 25, axis=1, keepdims=True)
+    reduced_mag = np.maximum(magnitude - noise_profile, 0.0)
+    y = librosa.istft(reduced_mag * np.exp(1j * np.angle(D)), hop_length=hop_length, length=len(y))
+
+    S_base = librosa.feature.melspectrogram(
+        y=y,
+        sr=sr,
+        n_fft=n_fft,
+        hop_length=hop_length,
+        window="hann",
+        n_mels=1024,
+        fmin=900,
+        fmax=14000,
+        power=1.0,
+    )
+    S_pcen = librosa.pcen(
+        S_base + 1e-6,
+        sr=sr,
+        hop_length=hop_length,
+        gain=0.7,
+        bias=9.0,
+        power=1.0,
+    )
+
+    fig, ax = plt.subplots(figsize=(10, 5), dpi=300)
+    img_disp = librosa.display.specshow(
+        S_pcen,
+        sr=sr,
+        hop_length=hop_length,
+        x_axis="time",
+        y_axis="mel",
+        fmin=900,
+        fmax=14000,
+        cmap="plasma",
+        ax=ax,
+    )
+    ax.set_title("")
+    ax.set_xlabel("Time (s)")
+    ax.set_ylabel("Frequency (Hz)")
+    cbar = fig.colorbar(img_disp, ax=ax, format="%+2.0f")
+    cbar.set_label("PCEN")
+    fig.tight_layout()
+    fig.savefig(tmp_file, bbox_inches="tight", dpi=300)
+    plt.close(fig)
+
     img = Image.open(tmp_file)
     height = img.size[1]
     width = img.size[0]
