@@ -1,6 +1,6 @@
 from __future__ import annotations
 APP_DESCRIPTION = """
-Streamlit UI for experimenting with spectrogram parameters and syllable segmentation.
+Streamlit UI for experimenting with spectrogram parameters.
 
 Features:
 - Adjust mel or STFT transforms
@@ -30,7 +30,6 @@ if str(PROJECT_ROOT) not in sys.path:
 from experimental.spectrogram_generator import (
     CONFIG_PATH,
     SpectrogramConfig,
-    detect_segments,
     generate_spectrogram,
     load_config,
     save_config,
@@ -44,18 +43,28 @@ HOP_MIN = 0.03125
 HOP_MAX = 0.5
 FMIN_RANGE = (500.0, 3000.0)
 FMAX_RANGE = (8000.0, 16000.0)
-COLORMAP_OPTIONS = ["soft_gray", "viridis", "plasma", "magma", "inferno", "cividis", "gray_r"]
+COLORMAP_OPTIONS = [
+    "soft_gray",
+    "hot",
+    "viridis",
+    "plasma",
+    "magma",
+    "inferno",
+    "cividis",
+    "gray_r",
+]
 COMPACT_STYLE = """
 <style>
-    div.block-container{padding-top:0.2rem;padding-bottom:0.35rem;max-width:1400px;}
-    section[data-testid="stSidebar"]{font-size:0.82rem;}
+    div.block-container{padding-top:0.15rem;padding-bottom:0.2rem;max-width:1400px;}
+    section[data-testid="stSidebar"]{font-size:0.8rem;}
     div[data-testid="stMarkdown"] p, label, .stSelectbox label, .stSlider label,
-    .stNumberInput label, .stTextInput label, .stCheckbox label{font-size:0.82rem;margin-bottom:0.15rem;}
-    .stSelectbox, .stNumberInput, .stSlider, .stTextInput, .stCheckbox{padding-top:0.05rem;padding-bottom:0.05rem;}
-    h1, h2, h3, h4{font-size:1rem;margin-bottom:0.3rem;}
-    .stButton>button{padding:0.3rem 0.35rem;font-size:0.88rem;}
-    [data-testid="stHorizontalBlock"]{row-gap:0.15rem;}
-    .stSlider [data-baseweb="slider"]{height:24px;}
+    .stNumberInput label, .stTextInput label, .stCheckbox label{font-size:0.8rem;margin-bottom:0.08rem;}
+    .stSelectbox, .stNumberInput, .stSlider, .stTextInput, .stCheckbox{padding-top:0.02rem;padding-bottom:0.02rem;}
+    h1, h2, h3, h4{font-size:1rem;margin-bottom:0.25rem;}
+    .stButton>button{padding:0.28rem 0.33rem;font-size:0.86rem;}
+    [data-testid="stHorizontalBlock"]{row-gap:0.08rem;}
+    .stSlider [data-baseweb="slider"]{height:22px;}
+    .section-title{font-size:13pt;font-weight:700;margin:0.15rem 0 0.05rem;}
 </style>
 """
 
@@ -95,16 +104,13 @@ HARD_DEFAULTS = {
     "title": "Experimental Spectrogram",
     "rms_frame_length": 1024,
     "rms_threshold": 0.2,
-    "min_segment_duration": 0.05,
-    "min_silence_duration": 0.05,
-    "segment_directory": "experimental/segments",
-    "sigmoid_k": 20.0,
-    "overlay_segments": True,
 }
 
 
 def _prefer_light_colormap(name: str) -> str:
-    return "soft_gray" if name == "gray_r" else name
+    if name in ("gray_r", "lightgray", "lichtgrijs"):
+        return "soft_gray"
+    return name
 
 
 def _init_state(cfg: SpectrogramConfig) -> None:
@@ -127,7 +133,7 @@ def render():
     st.title("Experimental Spectrogram Controls")
     st.caption(
         "Tweak parameters and visualize effect immediately. "
-        "Detected syllables are shown as overlays for quick inspection."
+        "Visualize adjustments instantly for quick comparisons."
     )
 
     cfg = load_config(CONFIG_PATH)
@@ -176,6 +182,7 @@ def render():
             f"High-pass filter enabled: {cfg.high_pass_filter}",
             f"HPF cutoff: {cfg.high_pass_cutoff} Hz",
             f"Output directory: {cfg.output_directory}",
+            f"Colormap: {cfg.colormap}",
         ]
         out_path.write_text("\n".join(lines), encoding="utf-8")
         return out_path
@@ -191,7 +198,7 @@ def render():
         with action_cols[3]:
             generate_all = st.button("Genereer PNGs", use_container_width=True)
 
-        st.subheader("Spectrogram core")
+        st.markdown('<div class="section-title">Spectrogram core</div>', unsafe_allow_html=True)
         transform_default = current_value("transform", working_cfg.get("transform", "mel"))
         if str(transform_default) not in TRANSFORM_OPTIONS:
             transform_default = TRANSFORM_OPTIONS[0]
@@ -255,8 +262,10 @@ def render():
         hop_length_calc = int(n_fft * hop_ratio)
         with fft_cols[2]:
             st.metric("Hop length (samples)", hop_length_calc)
+            frame_ms = (hop_length_calc / sample_rate) * 1000.0
+            st.caption(f"Frame duur: {frame_ms:.2f} ms")
 
-        st.subheader("Frequency & resolution")
+        st.markdown('<div class="section-title">Frequency & resolution</div>', unsafe_allow_html=True)
         fmin_default = float(current_value("fmin", working_cfg.get("fmin") or FMIN_RANGE[0]))
         fmax_default = float(current_value("fmax", working_cfg.get("fmax") or FMAX_RANGE[1]))
         freq_cols = st.columns(3)
@@ -294,7 +303,7 @@ def render():
                 help="Higher values reduce blocky low-frequency artefacts."
             )
 
-        st.subheader("Scaling")
+        st.markdown('<div class="section-title">Scaling</div>', unsafe_allow_html=True)
         scaling_cols = st.columns(2)
         with scaling_cols[0]:
             power = st.slider(
@@ -310,7 +319,23 @@ def render():
             use_log_frequency = transform == "stft"
             st.caption("Log frequency is auto-enabled for STFT.")
 
-        st.subheader("PCEN")
+        st.markdown('<div class="section-title">Appearance</div>', unsafe_allow_html=True)
+        appearance_cols = st.columns(2)
+        colormap_default = _prefer_light_colormap(str(current_value("colormap", working_cfg.get("colormap", COLORMAP_OPTIONS[0]))))
+        if colormap_default not in COLORMAP_OPTIONS:
+            colormap_default = COLORMAP_OPTIONS[0]
+        with appearance_cols[0]:
+            colormap = st.selectbox(
+                "Colormap",
+                COLORMAP_OPTIONS,
+                index=COLORMAP_OPTIONS.index(colormap_default),
+                key="colormap",
+                format_func=lambda name: "Lichtgrijs" if name in ("soft_gray", "lichtgrijs") else name,
+            )
+        with appearance_cols[1]:
+            st.caption("Kies een kleurschema, inclusief lichtgrijs of hot.")
+
+        st.markdown('<div class="section-title">PCEN</div>', unsafe_allow_html=True)
         pcen_enabled = st.checkbox(
             "Enable PCEN",
             value=bool(current_value("pcen_enabled", working_cfg.get("pcen_enabled", False))),
@@ -361,7 +386,7 @@ def render():
                 disabled=not pcen_enabled,
             )
 
-        st.subheader("Classic dB scaling (when PCEN is off)")
+        st.markdown('<div class="section-title">Classic dB scaling (when PCEN is off)</div>', unsafe_allow_html=True)
         db_cols = st.columns(3)
         with db_cols[0]:
             top_db = st.number_input(
@@ -391,7 +416,7 @@ def render():
                 disabled=pcen_enabled,
             )
 
-        st.subheader("Preprocessing")
+        st.markdown('<div class="section-title">Preprocessing</div>', unsafe_allow_html=True)
         pre_cols = st.columns(3)
         with pre_cols[0]:
             noise_reduction = st.checkbox(
@@ -423,8 +448,6 @@ def render():
                 disabled=not high_pass_filter,
             )
 
-        overlay_segments = bool(current_value("overlay_segments", working_cfg.get("overlay_segments", False)))
-
         st.session_state.hop_length = hop_length_calc
         updated = st.session_state["working_config"].copy()
         updated.update({
@@ -452,7 +475,7 @@ def render():
             "noise_reduction": noise_reduction,
             "high_pass_filter": high_pass_filter,
             "high_pass_cutoff": high_pass_cutoff,
-            "overlay_segments": overlay_segments,
+            "colormap": _prefer_light_colormap(colormap),
         })
         st.session_state["working_config"] = updated
         current_cfg = SpectrogramConfig.from_dict(updated)
@@ -474,9 +497,8 @@ def render():
                 generate_spectrogram(
                     wav,
                     current_cfg,
-                    overlay_segments=overlay_segments,
-                    export_segments_flag=False
-                )
+                     export_segments_flag=False
+                 )
             st.success(f"Processing complete! PNGs saved in {current_cfg.output_directory}")
 
     available_wavs: List[Path] = sorted(current_cfg.input_directory.glob("*.wav"))
@@ -488,7 +510,6 @@ def render():
     with preview_col:
         st.subheader("Live preview")
         current_cfg.output_directory.mkdir(parents=True, exist_ok=True)
-        Path(current_cfg.segment_directory).mkdir(parents=True, exist_ok=True)
 
         uploaded_path = None
         uploaded = st.file_uploader("Upload a WAV to generate a fresh PNG", type=["wav"])
@@ -501,7 +522,7 @@ def render():
             png_path = generate_spectrogram(
                 wav_path,
                 current_cfg,
-                overlay_segments=overlay_segments,
+                overlay_segments=False,
                 export_segments_flag=False
             )
             st.session_state.preview_path = png_path
@@ -542,7 +563,7 @@ def render():
                 preview_path = generate_spectrogram(
                     chosen_wav,
                     current_cfg,
-                    overlay_segments=overlay_segments,
+                    overlay_segments=False,
                     export_segments_flag=False
                 )
                 st.session_state.preview_path = preview_path
