@@ -28,7 +28,7 @@ EPSILON = 1e-6
 # Fixed 2:1 aspect with higher DPI for crisper labels
 TARGET_PNG_WIDTH = 944
 TARGET_PNG_HEIGHT = 472
-TARGET_DPI = 800
+TARGET_DPI = 1000
 TARGET_FIGSIZE = (TARGET_PNG_WIDTH / TARGET_DPI, TARGET_PNG_HEIGHT / TARGET_DPI)
 
 
@@ -103,11 +103,15 @@ def spectrogram(in_file, title, comment, raw=0):
 
     fig = plt.figure(figsize=TARGET_FIGSIZE, dpi=TARGET_DPI)
     ax = fig.add_axes([0.09, 0.14, 0.84, 0.76])
-    ax.tick_params(axis="both", labelsize=5, pad=1.0, length=2)
-    ax.xaxis.label.set_fontsize(6)
-    ax.yaxis.label.set_fontsize(6)
-    ax.xaxis.set_major_locator(mticker.MaxNLocator(7))
-    ax.yaxis.set_major_locator(mticker.MaxNLocator(7))
+    # Aim for ~1px strokes: linewidth in points = 72 / dpi
+    px_line = 72.0 / TARGET_DPI
+    ax.tick_params(axis="both", labelsize=3, pad=0.8, length=1.2, width=px_line)
+    ax.xaxis.label.set_fontsize(4)
+    ax.yaxis.label.set_fontsize(4)
+    ax.xaxis.set_major_locator(mticker.MaxNLocator(8))
+    ax.yaxis.set_major_locator(mticker.MaxNLocator(8))
+    for spine in ax.spines.values():
+        spine.set_linewidth(px_line)
     img_disp = librosa.display.specshow(
         S_pcen,
         sr=sr,
@@ -120,11 +124,14 @@ def spectrogram(in_file, title, comment, raw=0):
         ax=ax,
     )
     ax.set_title("")
-    ax.set_xlabel("Time (s)", labelpad=1.5)
-    ax.set_ylabel("Frequency (Hz)", labelpad=1.5)
+    ax.set_xlabel("Time (s)", labelpad=1.0)
+    ax.set_ylabel("Frequency (Hz)", labelpad=1.0)
+    img_disp.set_interpolation("kaiser")
     cbar = fig.colorbar(img_disp, ax=ax, format="%+2.0f")
-    cbar.ax.tick_params(labelsize=5)
-    cbar.set_label("PCEN", fontsize=6, labelpad=1.5)
+    cbar.ax.tick_params(labelsize=3, width=px_line, length=1.2)
+    if cbar.outline:
+        cbar.outline.set_linewidth(px_line)
+    cbar.set_label("PCEN", fontsize=4, labelpad=1.0)
     fig.savefig(tmp_file, dpi=TARGET_DPI)
     plt.close(fig)
 
