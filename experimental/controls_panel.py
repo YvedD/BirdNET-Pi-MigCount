@@ -88,9 +88,9 @@ HARD_DEFAULTS = {
     "high_pass_filter": False,
     "high_pass_cutoff": 800.0,
     "colormap": "soft_gray",
-    "fig_width": 10.0,
-    "fig_height": 5.0,
-    "dpi": 300,
+    "fig_width": 12.0,
+    "fig_height": 6.0,
+    "dpi": 600,
     "max_duration_sec": None,
     "title": "Experimental Spectrogram",
     "rms_frame_length": 1024,
@@ -99,7 +99,7 @@ HARD_DEFAULTS = {
     "min_silence_duration": 0.05,
     "segment_directory": "experimental/segments",
     "sigmoid_k": 20.0,
-    "overlay_segments": True,
+    "overlay_segments": False,
 }
 
 
