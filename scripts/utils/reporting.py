@@ -11,12 +11,24 @@ from time import sleep
 
 import requests
 from PIL import Image, ImageDraw, ImageFont
+import numpy as np
+import librosa
+import librosa.display  # type: ignore
+import matplotlib.pyplot as plt
+import matplotlib.ticker as mticker
+from scipy import signal
+plt.rcParams["image.interpolation"] = "lanczos"
 
 from .helpers import get_settings, get_font, DB_PATH
 from .classes import Detection, ParseFileName
 from .notifications import sendAppriseNotifications
 
 log = logging.getLogger(__name__)
+NOISE_PROFILE_PERCENTILE = 25
+EPSILON = 1e-6
+# Fixed 2:1 aspect with higher DPI for crisper labels (14x7in @700 dpi)
+TARGET_DPI = 700
+TARGET_FIGSIZE = (14.0, 7.0)
 
 
 def extract(in_file, out_file, start, stop):
@@ -49,15 +61,97 @@ def extract_safe(in_file, out_file, start, stop):
 def spectrogram(in_file, title, comment, raw=0):
     fd, tmp_file = tempfile.mkstemp(suffix='.png')
     os.close(fd)
-    args = ['sox', '-V1', f'{in_file}', '-n', 'remix', '1', 'rate', '24k', 'spectrogram',
-            '-t', '', '-c', '', '-o', tmp_file]
-    args += ['-r'] if int(raw) else []
 
-    result = subprocess.run(args, check=True, capture_output=True)
-    ret = result.stdout.decode('utf-8')
-    err = result.stderr.decode('utf-8')
-    if err:
-        raise RuntimeError(f'{ret}:\n {err}')
+    try:
+        y, sr = librosa.load(in_file, sr=48000, mono=True)
+    except Exception as exc:  # pragma: no cover
+        raise RuntimeError(f"Failed to load audio for spectrogram: {exc}") from exc
+
+    # High-pass filter at 1000 Hz
+    sos = signal.butter(4, 1000, btype="highpass", fs=sr, output="sos")
+    y = signal.sosfilt(sos, y)
+
+    # Noise reduction (simple spectral gating)
+    n_fft = 8192
+    hop_length = 1228
+    D = librosa.stft(y, n_fft=n_fft, hop_length=hop_length, window="hann")
+    magnitude = np.abs(D)
+    noise_profile = np.percentile(magnitude, NOISE_PROFILE_PERCENTILE, axis=1, keepdims=True)
+    reduced_mag = np.maximum(magnitude - noise_profile, 0.0)
+    y = librosa.istft(reduced_mag * np.exp(1j * np.angle(D)), hop_length=hop_length, length=len(y))
+
+    S_base = librosa.feature.melspectrogram(
+        y=y,
+        sr=sr,
+        n_fft=n_fft,
+        hop_length=hop_length,
+        window="hann",
+        n_mels=1024,
+        fmin=900,
+        fmax=14000,
+        power=1.0,
+    )
+    S_pcen = librosa.pcen(
+        S_base + EPSILON,
+        sr=sr,
+        hop_length=hop_length,
+        gain=0.7,
+        bias=9.0,
+        power=1.0,
+    )
+
+    fig = plt.figure(figsize=TARGET_FIGSIZE, dpi=TARGET_DPI, facecolor="black")
+    ax = fig.add_axes([0.09, 0.12, 0.76, 0.8], frame_on=True, facecolor="black")
+    # Aim for ~1px strokes: linewidth in points = 72 / dpi
+    px_line = 72.0 / TARGET_DPI
+    ax.tick_params(
+        axis="both",
+        labelsize=10,
+        pad=2.0,
+        length=3.0,
+        width=px_line,
+        colors="white",
+    )
+    ax.xaxis.label.set_fontsize(13)
+    ax.yaxis.label.set_fontsize(13)
+    ax.tick_params(which="minor", length=1.5, width=px_line, colors="white")
+    ax.xaxis.set_major_locator(mticker.MultipleLocator(0.5))
+    ax.yaxis.set_major_locator(mticker.MultipleLocator(1000))
+    ax.yaxis.set_minor_locator(mticker.MultipleLocator(500))
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v/1000:.0f} kHz"))
+    for spine in ax.spines.values():
+        spine.set_linewidth(px_line)
+        spine.set_color("white")
+    img_disp = librosa.display.specshow(
+        S_pcen,
+        sr=sr,
+        hop_length=hop_length,
+        x_axis="time",
+        y_axis="hz",
+        fmin=900,
+        fmax=14000,
+        cmap="plasma",
+        ax=ax,
+        shading="gouraud",
+    )
+    ax.set_title("")
+    ax.set_xlabel("Time (s)", labelpad=2.0, color="white")
+    ax.set_ylabel("Frequency (Hz)", labelpad=2.0, color="white")
+    ax.set_ylim(900, 14000)
+    cbar = fig.colorbar(img_disp, ax=ax, format="%+2.0f")
+    cbar.ax.tick_params(labelsize=10, width=px_line, length=3.0, colors="white")
+    cbar.ax.yaxis.set_major_locator(mticker.FixedLocator([-80, -60, -40, -20, 0]))
+    cbar.ax.set_ylabel("Power (dB)", color="white", fontsize=12, labelpad=4.0)
+    if cbar.outline:
+        cbar.outline.set_linewidth(px_line)
+        cbar.outline.set_color("white")
+    if cbar.outline:
+        cbar.outline.set_linewidth(px_line)
+    cbar.ax.tick_params(color="white")
+    cbar.set_label("Power (dB)", fontsize=12, labelpad=4.0, color="white")
+    fig.savefig(tmp_file, dpi=TARGET_DPI)
+    plt.close(fig)
+
     img = Image.open(tmp_file)
     height = img.size[1]
     width = img.size[0]

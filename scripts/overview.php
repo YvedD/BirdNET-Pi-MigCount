@@ -447,7 +447,7 @@ if (file_exists('./Charts/'.$chart)) {
 <?php
 $refresh = $config['RECORDING_LENGTH'];
 $time = time();
-echo "<img id=\"spectrogramimage\" src=\"spectrogram.png?nocache=$time\">";
+echo "<img id=\"spectrogramimage\" src=\"spectrogram.png?nocache=$time\" style=\"max-width:472px;width:50%;height:auto;display:block;margin:0 auto;background:#000;\">";
 
 ?>
 

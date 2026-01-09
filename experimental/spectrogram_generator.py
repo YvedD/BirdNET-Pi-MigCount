@@ -59,6 +59,8 @@ def _lighten_colormap(name: str, floor: float = 0.2) -> mcolors.Colormap:
 
 
 def _resolve_colormap(name: str):
+    if name in ("lichtgrijs", "lightgray"):
+        return _lighten_colormap("gray_r", 0.25)
     if name in plt.colormaps():
         return plt.get_cmap(name)
     if name == "soft_gray":
@@ -251,13 +253,6 @@ class SpectrogramConfig:
             "noise_reduction": self.noise_reduction,
             "high_pass_filter": self.high_pass_filter,
             "high_pass_cutoff": self.high_pass_cutoff,
-            "rms_frame_length": self.rms_frame_length,
-            "rms_threshold": self.rms_threshold,
-            "min_segment_duration": self.min_segment_duration,
-            "min_silence_duration": self.min_silence_duration,
-            "segment_directory": self.segment_directory,
-            "sigmoid_k": self.sigmoid_k,
-            "overlay_segments": self.overlay_segments,
         }
 
 
@@ -496,9 +491,20 @@ def generate_spectrogram(
     # Plot spectrogram with optional overlay
     fig, ax = plt.subplots(figsize=(cfg.fig_width, cfg.fig_height), dpi=cfg.dpi)
     cmap_obj = _resolve_colormap(cfg.colormap)
-    img = librosa.display.specshow(S_db, sr=sr, hop_length=hop_length, x_axis="time", y_axis=y_axis, fmin=effective_fmin, fmax=effective_fmax, cmap=cmap_obj, vmin=vmin, vmax=vmax, ax=ax)
-    if hasattr(img, "set_interpolation"):
-        img.set_interpolation("kaiser")
+    img = librosa.display.specshow(
+        S_db,
+        sr=sr,
+        hop_length=hop_length,
+        x_axis="time",
+        y_axis=y_axis,
+        fmin=effective_fmin,
+        fmax=effective_fmax,
+        cmap=cmap_obj,
+        vmin=vmin,
+        vmax=vmax,
+        ax=ax,
+        shading="gouraud",
+    )
     ax.set_ylim(
         bottom=effective_fmin if effective_fmin > 0.0 else None,
         top=effective_fmax,

@@ -1,12 +1,11 @@
 
 """
-Standalone harness to generate experimental spectrograms and WAV segments.
+Standalone harness to generate experimental spectrograms.
 
 This script:
 - loads the JSON config
 - processes all WAVs in input_directory
 - saves spectrogram PNGs to output_directory
-- saves syllable-level WAVs to segment_directory
 
 Useful for batch processing without Streamlit.
 """
@@ -27,7 +26,7 @@ def main():
         print(f"Processing {wav.name}...")
         generate_spectrogram(wav, cfg)
 
-    print(f"Done. Spectrograms in {cfg.output_directory}, segments in {cfg.segment_directory}")
+    print(f"Done. Spectrograms in {cfg.output_directory}")
 
 if __name__ == "__main__":
     main()
