@@ -580,7 +580,7 @@ echo "<table>
     }
 
     if($iter < 100){
-      $imageelem = "<div class='custom-audio-player' style="width:<?=$PLAYER_WIDTH?>px;height:<?=$PLAYER_HEIGHT?>px;max-width:<?=$PLAYER_WIDTH?>px;max-height:<?=$PLAYER_HEIGHT?>px;margin:0 auto;"data-audio-src=\"$filename\" data-image-src=\"$filename_png\"></div>";
+      $imageelem = "<div class='custom-audio-player' style=\"width:{$PLAYER_WIDTH}px;height:{$PLAYER_HEIGHT}px;max-width:{$PLAYER_WIDTH}px;max-height:{$PLAYER_HEIGHT}px;margin:0 auto;\" data-audio-src=\"$filename\" data-image-src=\"$filename_png\"></div>";
     } else {
       $imageelem = "<a href=\"$filename\"><img src=\"$filename_png\"></a>";
     }
@@ -707,7 +707,7 @@ echo "<table>
 <img style='cursor:pointer;right:45px' onclick='toggleLock(\"".$filename_formatted."\",\"".$type."\", this)' class=\"copyimage\" width=25 title=\"".$title."\" src=\"".$imageicon."\"> 
 <img style='cursor:pointer' onclick='toggleShiftFreq(\"".$filename_formatted."\",\"".$shiftAction."\", this)' class=\"copyimage\" width=25 title=\"".$shiftTitle."\" src=\"".$shiftImageIcon."\">$date $time<br>$values<br>
 
-<div class='custom-audio-player' style="width:<?=$PLAYER_WIDTH?>px;height:<?=$PLAYER_HEIGHT?>px;max-width:<?=$PLAYER_WIDTH?>px;max-height:<?=$PLAYER_HEIGHT?>px;margin:0 auto;" data-audio-src='$filename' data-image-src='$filename_png'></div>
+<div class='custom-audio-player' style=\"width:{$PLAYER_WIDTH}px;height:{$PLAYER_HEIGHT}px;max-width:{$PLAYER_WIDTH}px;max-height:{$PLAYER_HEIGHT}px;margin:0 auto;\" data-audio-src='$filename' data-image-src='$filename_png'></div>
 </td></tr>";
 
       }echo "</table>";}
