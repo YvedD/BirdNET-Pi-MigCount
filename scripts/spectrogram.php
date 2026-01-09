@@ -667,7 +667,7 @@ h1 {
 }
 </style>
 
-<img id="spectrogramimage" style="width:944px;height:611px;object-fit:contain;object-position:center;background:#000;display:none;margin:0 auto;" src="/spectrogram.png?nocache=<?php echo $time;?>">
+<img id="spectrogramimage" style="max-width:944px;width:100%;height:auto;display:none;margin:0 auto;background:#000;" src="/spectrogram.png?nocache=<?php echo $time;?>">
 
 <div class="control-section centered" style="font-size: 0.9em;">
   <div style="display:inline; margin-right: 15px;">
