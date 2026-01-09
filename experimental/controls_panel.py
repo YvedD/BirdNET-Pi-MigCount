@@ -99,7 +99,7 @@ HARD_DEFAULTS = {
     "min_silence_duration": 0.05,
     "segment_directory": "experimental/segments",
     "sigmoid_k": 20.0,
-    "overlay_segments": False,
+    "overlay_segments": True,
 }
 
 
