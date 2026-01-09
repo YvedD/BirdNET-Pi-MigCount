@@ -26,9 +26,9 @@ from .notifications import sendAppriseNotifications
 log = logging.getLogger(__name__)
 NOISE_PROFILE_PERCENTILE = 25
 EPSILON = 1e-6
-# Fixed 2:1 aspect with higher DPI for crisper labels (14x7in @700 dpi)
-TARGET_DPI = 700
-TARGET_FIGSIZE = (14.0, 7.0)
+# Fixed 2:1 aspect with higher DPI for crisper labels (10x5in @200 dpi)
+TARGET_DPI = 200
+TARGET_FIGSIZE = (10.0, 5.0)
 
 
 def extract(in_file, out_file, start, stop):
@@ -59,7 +59,7 @@ def extract_safe(in_file, out_file, start, stop):
 
 
 def spectrogram(in_file, title, comment, raw=0):
-    fd, tmp_file = tempfile.mkstemp(suffix='.png')
+    fd, tmp_file = tempfile.mkstemp(suffix=".png")
     os.close(fd)
 
     try:
@@ -71,16 +71,24 @@ def spectrogram(in_file, title, comment, raw=0):
     sos = signal.butter(4, 1000, btype="highpass", fs=sr, output="sos")
     y = signal.sosfilt(sos, y)
 
-    # Noise reduction (simple spectral gating)
+    # Noise reduction (spectral gating)
     n_fft = 8192
     hop_length = 1228
+
     D = librosa.stft(y, n_fft=n_fft, hop_length=hop_length, window="hann")
     magnitude = np.abs(D)
-    noise_profile = np.percentile(magnitude, NOISE_PROFILE_PERCENTILE, axis=1, keepdims=True)
+    noise_profile = np.percentile(
+        magnitude, NOISE_PROFILE_PERCENTILE, axis=1, keepdims=True
+    )
     reduced_mag = np.maximum(magnitude - noise_profile, 0.0)
-    y = librosa.istft(reduced_mag * np.exp(1j * np.angle(D)), hop_length=hop_length, length=len(y))
+    y = librosa.istft(
+        reduced_mag * np.exp(1j * np.angle(D)),
+        hop_length=hop_length,
+        length=len(y),
+    )
 
-    S_base = librosa.feature.melspectrogram(
+    # Mel spectrogram
+    S = librosa.feature.melspectrogram(
         y=y,
         sr=sr,
         n_fft=n_fft,
@@ -91,8 +99,10 @@ def spectrogram(in_file, title, comment, raw=0):
         fmax=14000,
         power=1.0,
     )
+
+    # PCEN (no dB!)
     S_pcen = librosa.pcen(
-        S_base + EPSILON,
+        S + EPSILON,
         sr=sr,
         hop_length=hop_length,
         gain=0.7,
@@ -100,70 +110,107 @@ def spectrogram(in_file, title, comment, raw=0):
         power=1.0,
     )
 
-    fig = plt.figure(figsize=TARGET_FIGSIZE, dpi=TARGET_DPI, facecolor="black")
-    ax = fig.add_axes([0.09, 0.12, 0.76, 0.8], frame_on=True, facecolor="black")
-    # Aim for ~1px strokes: linewidth in points = 72 / dpi
+    # ---- FIGURE ----
+    fig, ax = plt.subplots(
+        figsize=TARGET_FIGSIZE,
+        dpi=TARGET_DPI,
+        facecolor="black",
+        constrained_layout=True,
+    )
+    ax.set_facecolor("black")
+
     px_line = 72.0 / TARGET_DPI
+
+    # Draw spectrogram WITHOUT librosa axis helpers
+    img = ax.imshow(
+        S_pcen,
+        origin="lower",
+        aspect="auto",
+        cmap="plasma",
+        extent=[
+            0,
+            len(y) / sr,
+            900,
+            14000,
+        ],
+    )
+
+    # ---- AXES ----
+    ax.set_xlabel("Time (s)", fontsize=13, color="white", labelpad=6)
+    ax.set_ylabel("Frequency (Hz)", fontsize=13, color="white", labelpad=8)
+
     ax.tick_params(
         axis="both",
-        labelsize=10,
-        pad=2.0,
-        length=3.0,
+        which="major",
+        labelsize=11,
+        length=4,
+        width=px_line,
+        pad=4,
+        colors="white",
+    )
+    ax.tick_params(
+        axis="both",
+        which="minor",
+        length=2,
         width=px_line,
         colors="white",
     )
-    ax.xaxis.label.set_fontsize(13)
-    ax.yaxis.label.set_fontsize(13)
-    ax.tick_params(which="minor", length=1.5, width=px_line, colors="white")
+
     ax.xaxis.set_major_locator(mticker.MultipleLocator(0.5))
+    ax.xaxis.set_minor_locator(mticker.MultipleLocator(0.1))
+
     ax.yaxis.set_major_locator(mticker.MultipleLocator(1000))
     ax.yaxis.set_minor_locator(mticker.MultipleLocator(500))
-    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v/1000:.0f} kHz"))
-    for spine in ax.spines.values():
-        spine.set_linewidth(px_line)
-        spine.set_color("white")
-    img_disp = librosa.display.specshow(
-        S_pcen,
-        sr=sr,
-        hop_length=hop_length,
-        x_axis="time",
-        y_axis="hz",
-        fmin=900,
-        fmax=14000,
-        cmap="plasma",
-        ax=ax,
-        shading="gouraud",
+    ax.yaxis.set_major_formatter(
+        mticker.FuncFormatter(lambda v, _: f"{int(v/1000)} kHz")
     )
-    ax.set_title("")
-    ax.set_xlabel("Time (s)", labelpad=2.0, color="white")
-    ax.set_ylabel("Frequency (Hz)", labelpad=2.0, color="white")
+
+    for spine in ax.spines.values():
+        spine.set_color("white")
+        spine.set_linewidth(px_line)
+
     ax.set_ylim(900, 14000)
-    cbar = fig.colorbar(img_disp, ax=ax, format="%+2.0f")
-    cbar.ax.tick_params(labelsize=10, width=px_line, length=3.0, colors="white")
-    cbar.ax.yaxis.set_major_locator(mticker.FixedLocator([-80, -60, -40, -20, 0]))
-    cbar.ax.set_ylabel("Power (dB)", color="white", fontsize=12, labelpad=4.0)
-    if cbar.outline:
-        cbar.outline.set_linewidth(px_line)
-        cbar.outline.set_color("white")
-    if cbar.outline:
-        cbar.outline.set_linewidth(px_line)
-    cbar.ax.tick_params(color="white")
-    cbar.set_label("Power (dB)", fontsize=12, labelpad=4.0, color="white")
+
+    # ---- COLORBAR (properly attached) ----
+    from mpl_toolkits.axes_grid1 import make_axes_locatable
+
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="3.5%", pad=0.05)
+
+    cbar = fig.colorbar(img, cax=cax)
+    cbar.ax.tick_params(
+        labelsize=11,
+        width=px_line,
+        length=4,
+        colors="white",
+    )
+    cbar.outline.set_linewidth(px_line)
+    cbar.outline.set_edgecolor("white")
+
+    cbar.set_label(
+        "PCEN energy (a.u.)",
+        fontsize=12,
+        color="white",
+        labelpad=6,
+    )
+
     fig.savefig(tmp_file, dpi=TARGET_DPI)
     plt.close(fig)
 
+    # ---- PIL text overlay ----
     img = Image.open(tmp_file)
-    height = img.size[1]
-    width = img.size[0]
+    width, height = img.size
     draw = ImageDraw.Draw(img)
-    title_font = ImageFont.truetype(get_font()['path'], 13)
-    _, _, w, _ = draw.textbbox((0, 0), title, font=title_font)
-    draw.text(((width-w)/2, 6), title, fill="white", font=title_font)
 
-    comment_font = ImageFont.truetype(get_font()['path'], 11)
-    _, _, _, h = draw.textbbox((0, 0), comment, font=comment_font)
-    draw.text((1, height - (h + 1)), comment, fill="white", font=comment_font)
-    img.save(f'{in_file}.png')
+    title_font = ImageFont.truetype(get_font()["path"], 13)
+    tw = draw.textbbox((0, 0), title, font=title_font)[2]
+    draw.text(((width - tw) / 2, 6), title, fill="white", font=title_font)
+
+    comment_font = ImageFont.truetype(get_font()["path"], 11)
+    ch = draw.textbbox((0, 0), comment, font=comment_font)[3]
+    draw.text((4, height - ch - 4), comment, fill="white", font=comment_font)
+
+    img.save(f"{in_file}.png")
     os.remove(tmp_file)
 
 
