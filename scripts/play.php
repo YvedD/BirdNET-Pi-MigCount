@@ -3,6 +3,12 @@
 /* Prevent XSS input */
 $_GET   = filter_input_array(INPUT_GET, FILTER_SANITIZE_STRING);
 $_POST  = filter_input_array(INPUT_POST, FILTER_SANITIZE_STRING);
+// =====================================================
+// AUDIO PLAYER DISPLAY SIZE (in pixels)
+// Pas deze waarden later handmatig aan indien gewenst
+// =====================================================
+$PLAYER_WIDTH  = 944;   // <-- wijzig hier de breedte
+$PLAYER_HEIGHT = 611;   // <-- wijzig hier de hoogte
 
 error_reporting(E_ERROR);
 ini_set('display_errors',1);
@@ -574,7 +580,7 @@ echo "<table>
     }
 
     if($iter < 100){
-      $imageelem = "<div class='custom-audio-player' style=\"width:944px;height:611px;max-width:944px;max-height:611px;margin:0 auto;\" data-audio-src=\"$filename\" data-image-src=\"$filename_png\"></div>";
+      $imageelem = "<div class='custom-audio-player' style="width:<?=$PLAYER_WIDTH?>px;height:<?=$PLAYER_HEIGHT?>px;max-width:<?=$PLAYER_WIDTH?>px;max-height:<?=$PLAYER_HEIGHT?>px;margin:0 auto;"data-audio-src=\"$filename\" data-image-src=\"$filename_png\"></div>";
     } else {
       $imageelem = "<a href=\"$filename\"><img src=\"$filename_png\"></a>";
     }
@@ -701,7 +707,7 @@ echo "<table>
 <img style='cursor:pointer;right:45px' onclick='toggleLock(\"".$filename_formatted."\",\"".$type."\", this)' class=\"copyimage\" width=25 title=\"".$title."\" src=\"".$imageicon."\"> 
 <img style='cursor:pointer' onclick='toggleShiftFreq(\"".$filename_formatted."\",\"".$shiftAction."\", this)' class=\"copyimage\" width=25 title=\"".$shiftTitle."\" src=\"".$shiftImageIcon."\">$date $time<br>$values<br>
 
-<div class='custom-audio-player' style="width:944px;height:611px;max-width:944px;max-height:611px;margin:0 auto;" data-audio-src='$filename' data-image-src='$filename_png'></div>
+<div class='custom-audio-player' style="width:<?=$PLAYER_WIDTH?>px;height:<?=$PLAYER_HEIGHT?>px;max-width:<?=$PLAYER_WIDTH?>px;max-height:<?=$PLAYER_HEIGHT?>px;margin:0 auto;" data-audio-src='$filename' data-image-src='$filename_png'></div>
 </td></tr>";
 
       }echo "</table>";}
