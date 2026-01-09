@@ -106,9 +106,9 @@ def spectrogram(in_file, title, comment, raw=0):
     ax = fig.add_axes([0.09, 0.14, 0.84, 0.76], frame_on=True)
     # Aim for ~1px strokes: linewidth in points = 72 / dpi
     px_line = 72.0 / TARGET_DPI
-    ax.tick_params(axis="both", labelsize=7, pad=2, length=3, width=px_line)
-    ax.xaxis.label.set_fontsize(9)
-    ax.yaxis.label.set_fontsize(9)
+    ax.tick_params(axis="both", labelsize=3.5, pad=1.2, length=2.0, width=px_line)
+    ax.xaxis.label.set_fontsize(4.2)
+    ax.yaxis.label.set_fontsize(4.2)
     ax.xaxis.set_major_locator(mticker.MaxNLocator(10))
     ax.yaxis.set_major_locator(mticker.MaxNLocator(10))
     for spine in ax.spines.values():
@@ -130,10 +130,10 @@ def spectrogram(in_file, title, comment, raw=0):
     ax.set_ylabel("Frequency (Hz)", labelpad=1.0)
     ax.set_ylim(900, 14000)
     cbar = fig.colorbar(img_disp, ax=ax, format="%+2.0f")
-    cbar.ax.tick_params(labelsize=7, width=px_line, length=3)
+    cbar.ax.tick_params(labelsize=3.5, width=px_line, length=2.0)
     if cbar.outline:
         cbar.outline.set_linewidth(px_line)
-    cbar.set_label("PCEN", fontsize=4, labelpad=1.0)
+    cbar.set_label("PCEN", fontsize=3.8, labelpad=1.0)
     fig.savefig(tmp_file, dpi=TARGET_DPI)
     plt.close(fig)
 
