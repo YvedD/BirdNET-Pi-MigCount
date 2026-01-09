@@ -26,11 +26,9 @@ from .notifications import sendAppriseNotifications
 log = logging.getLogger(__name__)
 NOISE_PROFILE_PERCENTILE = 25
 EPSILON = 1e-6
-# Fixed 2:1 aspect with higher DPI for crisper labels
-TARGET_PNG_WIDTH = 944
-TARGET_PNG_HEIGHT = 472
-TARGET_DPI = 1000
-TARGET_FIGSIZE = (TARGET_PNG_WIDTH / TARGET_DPI, TARGET_PNG_HEIGHT / TARGET_DPI)
+# Fixed 2:1 aspect with higher DPI for crisper labels (14x7in @700 dpi)
+TARGET_DPI = 700
+TARGET_FIGSIZE = (14.0, 7.0)
 
 
 def extract(in_file, out_file, start, stop):
@@ -102,17 +100,28 @@ def spectrogram(in_file, title, comment, raw=0):
         power=1.0,
     )
 
-    fig = plt.figure(figsize=TARGET_FIGSIZE, dpi=TARGET_DPI)
-    ax = fig.add_axes([0.09, 0.14, 0.84, 0.76], frame_on=True)
+    fig = plt.figure(figsize=TARGET_FIGSIZE, dpi=TARGET_DPI, facecolor="black")
+    ax = fig.add_axes([0.09, 0.12, 0.76, 0.8], frame_on=True, facecolor="black")
     # Aim for ~1px strokes: linewidth in points = 72 / dpi
     px_line = 72.0 / TARGET_DPI
-    ax.tick_params(axis="both", labelsize=3.5, pad=1.2, length=2.0, width=px_line)
-    ax.xaxis.label.set_fontsize(4.2)
-    ax.yaxis.label.set_fontsize(4.2)
-    ax.xaxis.set_major_locator(mticker.MaxNLocator(10))
-    ax.yaxis.set_major_locator(mticker.MaxNLocator(10))
+    ax.tick_params(
+        axis="both",
+        labelsize=10,
+        pad=2.0,
+        length=3.0,
+        width=px_line,
+        colors="white",
+    )
+    ax.xaxis.label.set_fontsize(13)
+    ax.yaxis.label.set_fontsize(13)
+    ax.tick_params(which="minor", length=1.5, width=px_line, colors="white")
+    ax.xaxis.set_major_locator(mticker.MultipleLocator(0.5))
+    ax.yaxis.set_major_locator(mticker.MultipleLocator(1000))
+    ax.yaxis.set_minor_locator(mticker.MultipleLocator(500))
+    ax.yaxis.set_major_formatter(mticker.FuncFormatter(lambda v, _: f"{v/1000:.0f} kHz"))
     for spine in ax.spines.values():
         spine.set_linewidth(px_line)
+        spine.set_color("white")
     img_disp = librosa.display.specshow(
         S_pcen,
         sr=sr,
@@ -126,14 +135,20 @@ def spectrogram(in_file, title, comment, raw=0):
         shading="gouraud",
     )
     ax.set_title("")
-    ax.set_xlabel("Time (s)", labelpad=1.0)
-    ax.set_ylabel("Frequency (Hz)", labelpad=1.0)
+    ax.set_xlabel("Time (s)", labelpad=2.0, color="white")
+    ax.set_ylabel("Frequency (Hz)", labelpad=2.0, color="white")
     ax.set_ylim(900, 14000)
     cbar = fig.colorbar(img_disp, ax=ax, format="%+2.0f")
-    cbar.ax.tick_params(labelsize=3.5, width=px_line, length=2.0)
+    cbar.ax.tick_params(labelsize=10, width=px_line, length=3.0, colors="white")
+    cbar.ax.yaxis.set_major_locator(mticker.FixedLocator([-80, -60, -40, -20, 0]))
+    cbar.ax.set_ylabel("Power (dB)", color="white", fontsize=12, labelpad=4.0)
     if cbar.outline:
         cbar.outline.set_linewidth(px_line)
-    cbar.set_label("PCEN", fontsize=3.8, labelpad=1.0)
+        cbar.outline.set_color("white")
+    if cbar.outline:
+        cbar.outline.set_linewidth(px_line)
+    cbar.ax.tick_params(color="white")
+    cbar.set_label("Power (dB)", fontsize=12, labelpad=4.0, color="white")
     fig.savefig(tmp_file, dpi=TARGET_DPI)
     plt.close(fig)
 
