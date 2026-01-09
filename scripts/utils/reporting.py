@@ -106,11 +106,11 @@ def spectrogram(in_file, title, comment, raw=0):
     ax = fig.add_axes([0.09, 0.14, 0.84, 0.76], frame_on=True)
     # Aim for ~1px strokes: linewidth in points = 72 / dpi
     px_line = 72.0 / TARGET_DPI
-    ax.tick_params(axis="both", labelsize=3, pad=0.8, length=1.2, width=px_line)
-    ax.xaxis.label.set_fontsize(4)
-    ax.yaxis.label.set_fontsize(4)
-    ax.xaxis.set_major_locator(mticker.MaxNLocator(8))
-    ax.yaxis.set_major_locator(mticker.MaxNLocator(8))
+    ax.tick_params(axis="both", labelsize=7, pad=2, length=3, width=px_line)
+    ax.xaxis.label.set_fontsize(9)
+    ax.yaxis.label.set_fontsize(9)
+    ax.xaxis.set_major_locator(mticker.MaxNLocator(10))
+    ax.yaxis.set_major_locator(mticker.MaxNLocator(10))
     for spine in ax.spines.values():
         spine.set_linewidth(px_line)
     img_disp = librosa.display.specshow(
@@ -118,7 +118,7 @@ def spectrogram(in_file, title, comment, raw=0):
         sr=sr,
         hop_length=hop_length,
         x_axis="time",
-        y_axis="mel",
+        y_axis="hz",
         fmin=900,
         fmax=14000,
         cmap="plasma",
@@ -128,8 +128,9 @@ def spectrogram(in_file, title, comment, raw=0):
     ax.set_title("")
     ax.set_xlabel("Time (s)", labelpad=1.0)
     ax.set_ylabel("Frequency (Hz)", labelpad=1.0)
+    ax.set_ylim(900, 14000)
     cbar = fig.colorbar(img_disp, ax=ax, format="%+2.0f")
-    cbar.ax.tick_params(labelsize=3, width=px_line, length=1.2)
+    cbar.ax.tick_params(labelsize=7, width=px_line, length=3)
     if cbar.outline:
         cbar.outline.set_linewidth(px_line)
     cbar.set_label("PCEN", fontsize=4, labelpad=1.0)
