@@ -156,7 +156,7 @@ def spectrogram(in_file, title, comment, raw=0):
         colors="white",
     )
 
-    ax.xaxis.set_major_locator(mticker.MultipleLocator(0.5))
+    ax.xaxis.set_major_locator(mticker.MultipleLocator(1.0))
     ax.xaxis.set_minor_locator(mticker.MultipleLocator(0.1))
 
     ax.yaxis.set_major_locator(mticker.MultipleLocator(1000))
@@ -178,6 +178,9 @@ def spectrogram(in_file, title, comment, raw=0):
     cax = divider.append_axes("right", size="3.5%", pad=0.05)
 
     cbar = fig.colorbar(img, cax=cax)
+    # Set colorbar ticks to show min and max values explicitly
+    vmin, vmax = img.get_clim()
+    cbar.set_ticks([vmin, vmax])
     cbar.ax.tick_params(
         labelsize=11,
         width=px_line,
@@ -188,7 +191,7 @@ def spectrogram(in_file, title, comment, raw=0):
     cbar.outline.set_edgecolor("white")
 
     cbar.set_label(
-        "PCEN energy (a.u.)",
+        "PCEN dB",
         fontsize=12,
         color="white",
         labelpad=6,
