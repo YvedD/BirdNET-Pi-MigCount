@@ -400,7 +400,7 @@ def generate_spectrogram(
     y, sr = librosa.load(wav_path, sr=cfg.sample_rate, mono=True)
     y = _trim_audio(y, sr, cfg.max_duration_sec)
     y, capped_seconds = _cap_audio_for_memory(y, hop_length, mel_bins, sr)
-    if capped_seconds is not None and capped_seconds > 0:
+    if capped_seconds is not None:
         cfg.max_duration_sec = min(cfg.max_duration_sec, capped_seconds) if cfg.max_duration_sec else capped_seconds
 
     if cfg.high_pass_filter:
