@@ -175,7 +175,7 @@ def spectrogram(in_file, title, comment, raw=0):
     from mpl_toolkits.axes_grid1 import make_axes_locatable
 
     divider = make_axes_locatable(ax)
-    cax = divider.append_axes("right", size="3.5%", pad=0.05)
+    cax = divider.append_axes("right", size="3.5%", pad=0.15)
 
     cbar = fig.colorbar(img, cax=cax)
     # Set colorbar ticks to show min and max values explicitly
@@ -190,11 +190,15 @@ def spectrogram(in_file, title, comment, raw=0):
     cbar.outline.set_linewidth(px_line)
     cbar.outline.set_edgecolor("white")
 
-    cbar.set_label(
+    # Set colorbar label - explicitly set label position to right
+    cbar.ax.yaxis.set_label_position('right')
+    cbar.ax.set_ylabel(
         "PCEN dB",
-        fontsize=12,
+        fontsize=13,
         color="white",
-        labelpad=6,
+        rotation=270,
+        labelpad=20,
+        verticalalignment='bottom',
     )
 
     fig.savefig(tmp_file, dpi=TARGET_DPI)
@@ -205,9 +209,9 @@ def spectrogram(in_file, title, comment, raw=0):
     width, height = img.size
     draw = ImageDraw.Draw(img)
 
-    title_font = ImageFont.truetype(get_font()["path"], 13)
+    title_font = ImageFont.truetype(get_font()["path"], 20)
     tw = draw.textbbox((0, 0), title, font=title_font)[2]
-    draw.text(((width - tw) / 2, 6), title, fill="white", font=title_font)
+    draw.text(((width - tw) / 2, 8), title, fill="white", font=title_font)
 
     comment_font = ImageFont.truetype(get_font()["path"], 11)
     ch = draw.textbbox((0, 0), comment, font=comment_font)[3]
