@@ -32,6 +32,7 @@ NOISE_PROFILE_PERCENTILE = 25
 MIN_HOP_RATIO = 0.03125
 MAX_HOP_RATIO = 0.5
 ALLOWED_MEL_BINS = [128, 512, 1024, 2048, 4096]
+MAX_SPECTROGRAM_CELLS = 40_000_000
 
 
 def _calculate_hop_length(n_fft: int, hop_ratio: float, provided: Optional[int] = None) -> int:
@@ -357,6 +358,22 @@ def detect_segments(y: np.ndarray, sr: int, cfg: SpectrogramConfig) -> List[Tupl
     return segments
 
 
+def _cap_audio_for_memory(
+    y: np.ndarray, hop_length: int, mel_bins: int, sr: int
+) -> Tuple[np.ndarray, Optional[float]]:
+    """Prevent oversized spectrogram matrices that can exhaust RAM on constrained devices."""
+    frames = int(np.ceil(len(y) / hop_length)) if hop_length > 0 else 0
+    cells = frames * max(1, mel_bins)
+    if frames == 0 or cells <= MAX_SPECTROGRAM_CELLS:
+        return y, None
+
+    max_frames = max(1, MAX_SPECTROGRAM_CELLS // max(1, mel_bins))
+    max_samples = max_frames * hop_length
+    capped = y[:max_samples]
+    capped_seconds = len(capped) / sr if sr > 0 else 0.0
+    return capped, capped_seconds
+
+
 def export_segments(y: np.ndarray, sr: int, segments: List[Tuple[int, int]], cfg: SpectrogramConfig, base_name: str) -> None:
     """Segment export intentionally disabled; kept for API compatibility."""
     return None
@@ -378,8 +395,13 @@ def generate_spectrogram(
     cfg.n_fft = n_fft
     cfg.hop_ratio = hop_ratio
     cfg.hop_length = hop_length
+    mel_bins = _nearest_option(ALLOWED_MEL_BINS, int(cfg.n_mels))
+    cfg.n_mels = mel_bins
     y, sr = librosa.load(wav_path, sr=cfg.sample_rate, mono=True)
     y = _trim_audio(y, sr, cfg.max_duration_sec)
+    y, capped_seconds = _cap_audio_for_memory(y, hop_length, mel_bins, sr)
+    if capped_seconds is not None:
+        cfg.max_duration_sec = min(cfg.max_duration_sec, capped_seconds) if cfg.max_duration_sec else capped_seconds
 
     if cfg.high_pass_filter:
         nyquist = sr / 2.0
@@ -388,9 +410,6 @@ def generate_spectrogram(
         cfg.high_pass_cutoff = cutoff
     if cfg.noise_reduction:
         y = _apply_noise_reduction(y, n_fft, hop_length)
-
-    mel_bins = _nearest_option(ALLOWED_MEL_BINS, int(cfg.n_mels))
-    cfg.n_mels = mel_bins
 
     # Determine frequency bounds
     nyquist = sr / 2.0
