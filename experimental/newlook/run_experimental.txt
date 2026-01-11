@@ -1,0 +1,15 @@
+cd ~/BirdNET-Pi-MigCount
+git fetch origin
+git checkout main
+git reset --hard origin/copilot/create-sandbox-for-spectrogram-generation
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install --upgrade numpy scipy soundfile matplotlib streamlit pillow
+python - <<'EOF'
+import numpy, scipy, soundfile, matplotlib, streamlit
+from PIL import Image
+print("All experimental dependencies OK")
+EOF
+python -m streamlit run experimental/newlook/app.py --server.headless true
+echo "Open http://localhost:8501 to test the experimental spectrogram GUI"
