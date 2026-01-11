@@ -180,7 +180,7 @@ def main():
     )
 
     col_preview, col_actions = st.columns([3, 1])
-    col_preview.image(png_bytes, caption="Live spectrogram preview", use_column_width=True)
+    col_preview.image(png_bytes, caption="Live spectrogram preview", use_container_width=True)
 
     suggested_name = audio_path.with_name(audio_path.stem + "_newlook.png").name
     col_actions.download_button("Download PNG", data=png_bytes, file_name=suggested_name, mime="image/png")
