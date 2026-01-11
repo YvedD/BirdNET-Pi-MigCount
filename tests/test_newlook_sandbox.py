@@ -14,6 +14,7 @@ def _sine_wave(freq: float, sr: int, duration: float) -> np.ndarray:
 def test_compute_spectrogram_clamps_to_range():
     sr = 24000
     audio = _sine_wave(1000.0, sr, duration=1.0)
+    db_range = 50.0
     freqs, times, db = compute_spectrogram(
         audio,
         sample_rate=sr,
@@ -23,13 +24,13 @@ def test_compute_spectrogram_clamps_to_range():
         fmin=500.0,
         fmax=2000.0,
         per_freq_norm=True,
-        db_range=50.0,
+        db_range=db_range,
     )
     assert freqs[0] >= 500.0
     assert freqs[-1] <= 2000.0
     assert db.shape[0] == len(freqs)
     assert db.max() <= 0.0
-    assert db.min() >= -50.1
+    assert db.min() >= -(db_range + 0.1)
 
 
 def test_renderer_outputs_png(tmp_path):
@@ -72,4 +73,6 @@ def test_audio_loader_resamples(tmp_path):
     sf.write(wav_path, audio, original_sr)
     resampled_audio, sr = load_audio(wav_path, target_sample_rate=24000)
     assert sr == 24000
-    assert abs(len(resampled_audio) - int(len(audio) * 24000 / original_sr)) <= 2
+    tolerance_samples = 2  # allow small rounding drift from polyphase resampling
+    expected_len = int(len(audio) * 24000 / original_sr)
+    assert abs(len(resampled_audio) - expected_len) <= tolerance_samples

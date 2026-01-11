@@ -7,12 +7,13 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.ticker import MaxNLocator  # noqa: E402
+import numpy as np  # noqa: E402
 
 
 def render_spectrogram(
-    freqs,
-    times,
-    db_spectrogram,
+    freqs: np.ndarray,
+    times: np.ndarray,
+    db_spectrogram: np.ndarray,
     *,
     cmap: str,
     figsize: Tuple[float, float],
@@ -31,7 +32,7 @@ def render_spectrogram(
     ax.yaxis.set_major_locator(MaxNLocator(nbins=8))
     cbar = fig.colorbar(mesh, ax=ax)
     cbar.set_label("Amplitude (dB)")
-    cbar.set_ticks([vmin, vmax])
+    cbar.set_ticks(np.linspace(vmin, vmax, num=3))
     fig.tight_layout()
     buffer = io.BytesIO()
     fig.savefig(buffer, format="png", dpi=dpi, bbox_inches="tight")

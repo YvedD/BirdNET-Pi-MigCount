@@ -1,4 +1,4 @@
-from typing import Iterable, Tuple
+from typing import Iterable, Optional, Tuple
 
 
 def hz_per_bin(sample_rate: int, n_fft: int) -> float:
@@ -9,7 +9,7 @@ def ms_per_hop(hop_length: int, sample_rate: int) -> float:
     return 1000.0 * float(hop_length) / float(sample_rate)
 
 
-def clamp_frequency_range(fmin: float, fmax: float, sample_rate: int) -> Tuple[float, float]:
+def clamp_frequency_range(fmin: float, fmax: Optional[float], sample_rate: int) -> Tuple[float, float]:
     nyquist = float(sample_rate) / 2.0
     low = max(0.0, float(fmin))
     high = nyquist if fmax is None else min(float(fmax), nyquist)

@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 from scipy import signal
@@ -21,8 +21,8 @@ def compute_spectrogram(
     n_fft: int,
     hop_length: int,
     window: str,
-    fmin: float = None,
-    fmax: float = None,
+    fmin: Optional[float] = None,
+    fmax: Optional[float] = None,
     per_freq_norm: bool = False,
     db_range: float = 60.0,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
@@ -48,8 +48,8 @@ def compute_spectrogram(
     magnitude = np.abs(stft)
 
     if per_freq_norm:
-        scale = magnitude.mean(axis=1, keepdims=True)
-        magnitude = magnitude / (scale + EPS)
+        scale = magnitude.mean(axis=1, keepdims=True) + EPS
+        magnitude = magnitude / scale
 
     db_spectrogram = _power_to_db(magnitude, db_range=db_range)
 

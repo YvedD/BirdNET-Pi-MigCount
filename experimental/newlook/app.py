@@ -1,10 +1,18 @@
+from dataclasses import replace
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Tuple
 
 import numpy as np
 import streamlit as st
 
-from .audio_loader import audio_info, is_supported_file, load_audio, persist_uploaded_file
+from .audio_loader import (
+    AudioLoadingError,
+    SupportsUpload,
+    audio_info,
+    is_supported_file,
+    load_audio,
+    persist_uploaded_file,
+)
 from .config import (
     COLOR_MAPS,
     DEFAULT_CMAP,
@@ -17,6 +25,7 @@ from .config import (
     NFFT_OPTIONS,
     SAMPLE_RATES,
     WINDOW_OPTIONS,
+    SpectrogramParameters,
 )
 from .renderer import render_spectrogram, save_png
 from .spectrogram_engine import compute_spectrogram
@@ -26,29 +35,29 @@ st.set_page_config(page_title="Experimental Spectrogram Sandbox", layout="wide")
 
 
 @st.cache_data(show_spinner=False)
-def _cached_audio(path: str, target_sample_rate: Optional[int], resample: bool):
+def _cached_audio(path: str, target_sample_rate: Optional[int], resample: bool) -> Tuple[np.ndarray, int]:
     target = target_sample_rate if resample else None
     audio, sr = load_audio(path, target_sample_rate=target)
     return audio, sr
 
 
 @st.cache_data(show_spinner=False)
-def _cached_spectrogram(audio: np.ndarray, sr: int, n_fft: int, hop_length: int, window: str, fmin: float, fmax: float, per_freq_norm: bool, db_range: float):
+def _cached_spectrogram(audio: np.ndarray, params: SpectrogramParameters) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     freqs, times, db = compute_spectrogram(
         audio,
-        sample_rate=sr,
-        n_fft=n_fft,
-        hop_length=hop_length,
-        window=window,
-        fmin=fmin,
-        fmax=fmax,
-        per_freq_norm=per_freq_norm,
-        db_range=db_range,
+        sample_rate=params.sample_rate,
+        n_fft=params.n_fft,
+        hop_length=params.hop_length,
+        window=params.window,
+        fmin=params.fmin,
+        fmax=params.fmax,
+        per_freq_norm=params.per_freq_norm,
+        db_range=params.db_range,
     )
     return freqs, times, db
 
 
-def _resolve_audio_source(uploaded_file, path_text: str) -> Optional[Path]:
+def _resolve_audio_source(uploaded_file: Optional[SupportsUpload], path_text: str) -> Optional[Path]:
     if uploaded_file:
         return persist_uploaded_file(uploaded_file)
     if path_text:
@@ -85,6 +94,20 @@ def main():
         width = st.slider("Figure width", min_value=4.0, max_value=14.0, value=DEFAULT_FIGSIZE[0], step=0.5)
         height = st.slider("Figure height", min_value=2.0, max_value=8.0, value=DEFAULT_FIGSIZE[1], step=0.5)
 
+    params = SpectrogramParameters(
+        sample_rate=target_sample_rate,
+        n_fft=n_fft,
+        hop_length=hop_length,
+        window=window,
+        fmin=fmin,
+        fmax=fmax,
+        per_freq_norm=per_freq_norm,
+        db_range=db_range,
+        cmap=cmap,
+        dpi=dpi,
+        figsize=(width, height),
+    )
+
     audio_path = _resolve_audio_source(uploaded, path_text)
 
     if not audio_path:
@@ -99,8 +122,11 @@ def main():
 
     try:
         audio, effective_sr = _cached_audio(str(audio_path), target_sample_rate, resample=resample)
-    except Exception as exc:
+    except AudioLoadingError as exc:
         st.error(f"Failed to load audio: {exc}")
+        return
+    except OSError as exc:
+        st.error(f"Filesystem error while loading audio: {exc}")
         return
 
     try:
@@ -109,9 +135,16 @@ def main():
         st.error(str(exc))
         return
 
-    duration = len(audio) / float(effective_sr)
-    freq_res = hz_per_bin(effective_sr, n_fft)
-    time_res = ms_per_hop(hop_length, effective_sr)
+    runtime_params = replace(
+        params,
+        sample_rate=effective_sr,
+        fmin=fmin_clamped,
+        fmax=fmax_clamped,
+    )
+
+    duration = len(audio) / float(runtime_params.sample_rate)
+    freq_res = hz_per_bin(runtime_params.sample_rate, runtime_params.n_fft)
+    time_res = ms_per_hop(runtime_params.hop_length, runtime_params.sample_rate)
 
     status_cols = st.columns(3)
     status_cols[0].metric("Audio length", format_seconds(duration))
@@ -119,22 +152,12 @@ def main():
     status_cols[2].metric("Time resolution", f"{time_res:.2f} ms/frame")
     st.write(f"Input sample rate: {info['sample_rate']} Hz  •  Effective sample rate: {effective_sr} Hz  •  Channels: {info['channels']}")
 
-    vmin = -float(db_range)
+    vmin = -float(runtime_params.db_range)
     vmax = 0.0
 
     try:
-        freqs, times, db_values = _cached_spectrogram(
-            audio,
-            effective_sr,
-            n_fft=n_fft,
-            hop_length=hop_length,
-            window=window,
-            fmin=fmin_clamped,
-            fmax=fmax_clamped,
-            per_freq_norm=per_freq_norm,
-            db_range=db_range,
-        )
-    except Exception as exc:
+        freqs, times, db_values = _cached_spectrogram(audio, runtime_params)
+    except (ValueError, RuntimeError) as exc:
         st.error(f"Spectrogram failed: {exc}")
         return
 
@@ -142,13 +165,13 @@ def main():
         freqs,
         times,
         db_values,
-        cmap=cmap,
-        figsize=(width, height),
-        dpi=dpi,
+        cmap=runtime_params.cmap,
+        figsize=runtime_params.figsize,
+        dpi=runtime_params.dpi,
         vmin=vmin,
         vmax=vmax,
-        fmin=fmin_clamped,
-        fmax=fmax_clamped,
+        fmin=runtime_params.fmin,
+        fmax=runtime_params.fmax,
     )
 
     col_preview, col_actions = st.columns([3, 1])

@@ -1,7 +1,7 @@
 cd ~/BirdNET-Pi-MigCount
 git fetch origin
 git checkout main
-git reset --hard origin/copilot/create-sandbox-for-spectrogram-generation
+git reset --hard origin/main
 python3 -m venv venv
 source venv/bin/activate
 pip install --upgrade pip
