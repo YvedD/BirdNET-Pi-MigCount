@@ -4,7 +4,7 @@ from typing import Tuple
 SAMPLE_RATES = (24000, 48000)
 NFFT_OPTIONS = (2048, 4096, 8192)
 WINDOW_OPTIONS = ("hann", "blackman", "hamming")
-COLOR_MAPS = ("magma", "inferno", "viridis", "cividis", "plasma", "gray")
+COLOR_MAPS = ("magma", "inferno", "viridis", "cividis", "plasma", "gray_r","hot","jet")
 
 DEFAULT_FMIN = 0.0
 DEFAULT_FMAX = 12000.0
