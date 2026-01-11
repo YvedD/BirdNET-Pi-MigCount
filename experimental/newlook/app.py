@@ -1,11 +1,16 @@
 from dataclasses import replace
 from pathlib import Path
 from typing import Optional, Tuple
+import sys
+
+ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 import numpy as np
 import streamlit as st
 
-from .audio_loader import (
+from experimental.newlook.audio_loader import (
     AudioLoadingError,
     SupportsUpload,
     audio_info,
@@ -13,7 +18,7 @@ from .audio_loader import (
     load_audio,
     persist_uploaded_file,
 )
-from .config import (
+from experimental.newlook.config import (
     COLOR_MAPS,
     DEFAULT_CMAP,
     DEFAULT_DB_RANGE,
@@ -27,9 +32,9 @@ from .config import (
     WINDOW_OPTIONS,
     SpectrogramParameters,
 )
-from .renderer import render_spectrogram, save_png
-from .spectrogram_engine import compute_spectrogram
-from .utils import clamp_frequency_range, format_seconds, hz_per_bin, ms_per_hop
+from experimental.newlook.renderer import render_spectrogram, save_png
+from experimental.newlook.spectrogram_engine import compute_spectrogram
+from experimental.newlook.utils import clamp_frequency_range, format_seconds, hz_per_bin, ms_per_hop
 
 st.set_page_config(page_title="Experimental Spectrogram Sandbox", layout="wide")
 
