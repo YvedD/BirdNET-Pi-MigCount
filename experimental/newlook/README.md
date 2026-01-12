@@ -1,21 +1,29 @@
 # Experimental Spectrogram Sandbox (new look)
 
-This sandbox provides a fast, linear-STFT spectrogram workflow for BirdNET-Pi recordings on Raspberry Pi 4B hardware. It is intentionally isolated from the main pipeline and uses only `numpy`, `scipy.signal`, `soundfile`, `matplotlib` (Agg) and `streamlit`.
+An isolated Streamlit GUI to compare high-performance spectrogram renderers on Raspberry Pi 4B with HDMI. The sandbox lives entirely in `experimental/newlook/` and shares nothing with production BirdNET-Pi code.
 
-## Goals
-- Offline, high-resolution spectrogram generation for BirdNET-Pi audio clips.
-- Adjustable FFT, hop, window, frequency range, dB dynamic range and color map.
-- Headless-friendly Streamlit GUI with live preview and PNG export next to the audio file.
-- Deterministic output suitable for future integration with BirdNET-Pi detections.
+## Architecture
+- **Audio loading**: WAV/MP3 via `soundfile`, optional resampling to 24 kHz or 48 kHz.
+- **DSP**: Shared linear STFT (no mel), configurable FFT size, hop, window, per-frequency normalization, and dB dynamic range.
+- **Renderers** (switchable live):
+  - **Matplotlib (reference)**: Full axis control, DPI, colormap; PNG output.
+  - **PyQtGraph (fast)**: Qt-backed image pipeline with gamma/contrast control, interpolation toggle, and downsampling for speed.
+  - **Datashader + Holoviews (dense)**: Correct aggregation for large matrices, shading modes, and resolution controls for scientific inspection.
+- **GUI**: Streamlit split-view with parameters on the left, live preview on the right, and render-time metrics per backend. Switching renderers reuses the cached DSP output.
 
-## Run (headless)
-```bash
-python -m streamlit run experimental/newlook/app.py --server.headless true
-```
+## Running the sandbox
+Use `experimental/newlook/run_experimental.txt` for a copy/paste bootstrap:
+1. Create/activate a venv.
+2. Upgrade/install the required dependencies (numpy, scipy, soundfile, matplotlib, streamlit, pillow, pyqtgraph, PyQt5, datashader, holoviews).
+3. Run `python -m streamlit run experimental/newlook/app.py`.
+4. Open `http://localhost:8501` in your browser (HDMI on the Pi).
 
-After launch, open `http://localhost:8501` in your browser, choose a WAV/MP3 clip, tweak parameters on the left, and preview/save the resulting spectrogram on the right.
+## Renderer intents
+- **Matplotlib**: Reference-quality PNGs with stable color scaling for later comparisons.
+- **PyQtGraph**: Lowest-latency preview when tweaking parameters; direct rendering of the spectrogram matrix.
+- **Datashader + Holoviews**: Handles very dense matrices with correct aggregation and shading for scientific review.
 
-## Integration notes
-- The engine uses pure STFT (no mel) for maximum syllable detail.
-- PNGs are stored alongside the source clip when a filesystem path is provided, making it straightforward to reference them from detection outputs or reports.
-- Caching is scoped per run to avoid global state while keeping interactions responsive on constrained devices.
+## Integration ideas
+- Generated PNGs can be saved next to each audio file; detection code can point to these assets without coupling to the sandbox.
+- The shared DSP layer aligns with BirdNET-Pi detections (linear Hz, no mel), so timestamps and frequency bins match downstream analysis.
+- Render-time metrics help select the best backend before integrating visuals into reports or dashboards.

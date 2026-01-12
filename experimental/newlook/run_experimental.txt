@@ -1,15 +1,24 @@
-cd ~/BirdNET-Pi
-git fetch origin
-git checkout main
-git reset --hard origin/copilot/create-sandbox-for-spectrogram-generation
-python3 -m venv venv
-source venv/bin/activate
+#!/usr/bin/env bash
+set -e
+
+# Move to repository root from experimental/newlook/
+REPO_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+cd "$REPO_ROOT"
+
+# Create/activate an isolated virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# Install and upgrade all sandbox dependencies on every start
 pip install --upgrade pip
-pip install --upgrade "numpy<2.4" scipy soundfile matplotlib streamlit pillow
+pip install --upgrade numpy scipy soundfile matplotlib streamlit pillow pyqtgraph PyQt5 datashader holoviews panel
+
+# Sanity check imports
 python - <<'EOF'
-import numpy, scipy, soundfile, matplotlib, streamlit
-from PIL import Image
+import numpy, scipy, soundfile, matplotlib, streamlit, pyqtgraph, PyQt5, datashader, holoviews  # noqa: F401
 print("All experimental dependencies OK")
 EOF
-python -m streamlit run experimental/newlook/app.py --server.headless true
-echo "Open http://localhost:8501 to test the experimental spectrogram GUI"
+
+# Launch the sandbox GUI
+python -m streamlit run experimental/newlook/app.py
+echo "Open http://localhost:8501 in your browser to test the NewLook spectrogram GUI"
