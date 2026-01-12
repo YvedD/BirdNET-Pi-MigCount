@@ -109,6 +109,8 @@ def render_pyqtgraph(
     vmin: float,
     vmax: float,
 ) -> bytes:
+    if "QT_QPA_PLATFORM" not in os.environ:
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
     import pyqtgraph as pg
 
     _ensure_qt_application()
