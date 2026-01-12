@@ -23,6 +23,7 @@ _QT_BINDING = None
 
 
 def _ensure_qt_offscreen():
+    """Set Qt to offscreen mode when a GUI display is unavailable."""
     if "QT_QPA_PLATFORM" not in os.environ:
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
@@ -87,7 +88,6 @@ def _import_qt():
 
 def _ensure_qt_application():
     """Ensure a Qt application exists; default to offscreen for headless rendering."""
-    _ensure_qt_offscreen()
     global _QT_APP
     _, _, _, QtWidgets = _import_qt()
     if _QT_APP is None:
