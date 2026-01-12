@@ -101,6 +101,7 @@ def _lut_for_pyqtgraph(cmap_name: str):
     import pyqtgraph as pg
 
     cmap = pg.colormap.get(cmap_name, source="matplotlib")
+    # 256-entry LUT, uint8, shape (256, 4)
     return cmap.getLookupTable(0.0, 1.0, 256)
 
 
@@ -115,27 +116,92 @@ def render_pyqtgraph(
 ) -> bytes:
     _set_default_qt_offscreen()
     import pyqtgraph as pg
+    import numpy as np
 
     _ensure_qt_application()
     _, QtCore, QtGui, _ = _import_qt()
 
-    data = db_spectrogram[:, :: params.downsample]
-    normalized = np.clip((data - vmin) / (vmax - vmin), 0.0, 1.0)
+    # ------------------------------------------------------------
+    # 1) Downsample in tijd (zoals je al deed)
+    # ------------------------------------------------------------
+    data = db_spectrogram[:, :: params.downsample].astype(np.float32)
+
+    # ------------------------------------------------------------
+    # 2) Optionele gamma-correctie in DATA-domein
+    #    (niet normaliseren naar 0..1!)
+    # ------------------------------------------------------------
     if params.gamma != 1.0:
-        normalized = np.power(normalized, params.gamma)
+        # Eerst clamp naar dB-range, dan gamma
+        data = np.clip(data, vmin, vmax)
+        norm = (data - vmin) / (vmax - vmin)
+        norm = np.power(norm, params.gamma)
+        data = vmin + norm * (vmax - vmin)
+
+    # ------------------------------------------------------------
+    # 3) PyQtGraph verwacht oorsprong onderaan
+    # ------------------------------------------------------------
+    data = np.flipud(data)
+
+    # ------------------------------------------------------------
+    # 4) LUT + makeARGB
+    #    CRUCIAAL: levels zijn VERPLICHT bij float input
+    # ------------------------------------------------------------
     lut = _lut_for_pyqtgraph(params.cmap)
-    argb, _ = pg.functions.makeARGB(np.flipud(normalized), lut=lut)
+
+    argb, _ = pg.functions.makeARGB(
+        data,
+        lut=lut,
+        levels=(vmin, vmax),
+    )
+
+    # ------------------------------------------------------------
+    # 5) ARGB → QImage (RGBA8888)
+    # ------------------------------------------------------------
     arr = np.require(argb, requirements=["C_CONTIGUOUS"])
     h, w, _ = arr.shape
-    qimg = QtGui.QImage(arr.tobytes(), w, h, QtGui.QImage.Format_RGBA8888).copy()
-    qt_transform = getattr(QtCore.Qt, "SmoothTransformation", getattr(QtCore.Qt.TransformationMode, "SmoothTransformation", None))
-    qt_fast = getattr(QtCore.Qt, "FastTransformation", getattr(QtCore.Qt.TransformationMode, "FastTransformation", None))
+
+    qimg = QtGui.QImage(
+        arr.tobytes(),
+        w,
+        h,
+        QtGui.QImage.Format_RGBA8888,
+    ).copy()
+
+    # ------------------------------------------------------------
+    # 6) Schalen naar UI-afmetingen
+    # ------------------------------------------------------------
+    qt_transform = getattr(
+        QtCore.Qt,
+        "SmoothTransformation",
+        getattr(QtCore.Qt.TransformationMode, "SmoothTransformation", None),
+    )
+    qt_fast = getattr(
+        QtCore.Qt,
+        "FastTransformation",
+        getattr(QtCore.Qt.TransformationMode, "FastTransformation", None),
+    )
     transform_mode = qt_transform if params.interpolate else qt_fast
-    qt_ignore = getattr(QtCore.Qt, "IgnoreAspectRatio", getattr(QtCore.Qt.AspectRatioMode, "IgnoreAspectRatio", None))
-    qimg = qimg.scaled(params.width, params.height, qt_ignore, transform_mode)
+
+    qt_ignore = getattr(
+        QtCore.Qt,
+        "IgnoreAspectRatio",
+        getattr(QtCore.Qt.AspectRatioMode, "IgnoreAspectRatio", None),
+    )
+
+    qimg = qimg.scaled(
+        params.width,
+        params.height,
+        qt_ignore,
+        transform_mode,
+    )
+
+    # ------------------------------------------------------------
+    # 7) Encode naar PNG
+    # ------------------------------------------------------------
     buffer = QtCore.QBuffer()
     buffer.open(QtCore.QIODevice.WriteOnly)
     qimg.save(buffer, "PNG")
+
     return bytes(buffer.data())
 
 
@@ -150,28 +216,68 @@ def render_datashader(
     fmin: float,
     fmax: float,
 ) -> bytes:
+    """
+    Render a spectrogram using Datashader.
+
+    Correctly supports:
+    - how = "log"   (with explicit span)
+    - how = "linear" (with explicit span)
+    - how = "cbrt"  (with explicit span)
+    - how = "eq_hist" (WITHOUT span, as required by Datashader)
+    """
+
     global _HOLOVIEWS_READY
     if not _HOLOVIEWS_READY:
         hv.extension("bokeh", logo=False)
         _HOLOVIEWS_READY = True
-    data_array = xr.DataArray(db_spectrogram, coords={"y": freqs, "x": times}, dims=("y", "x"))
+
+    # Build DataArray (y = frequency, x = time)
+    data_array = xr.DataArray(
+        db_spectrogram,
+        coords={
+            "y": freqs,
+            "x": times,
+        },
+        dims=("y", "x"),
+    )
+
+    # Canvas in absolute units
     canvas = ds.Canvas(
         plot_width=params.width,
         plot_height=params.height,
         x_range=(float(times.min()), float(times.max())),
         y_range=(float(fmin), float(fmax)),
     )
+
     agg = canvas.raster(data_array)
+
     palette = _palette_from_cmap(params.cmap)
-    shade_kwargs = {"cmap": palette, "how": params.shading}
-    if params.shading != "eq_hist":
-        shade_kwargs["span"] = (vmin, vmax)
-    shaded = tf.shade(agg, **shade_kwargs)
-    pil_image = tf.set_background(shaded, "white").to_pil()
+
+    # ------------------------------------------------------------------
+    # CRITICAL FIX:
+    # eq_hist MUST NOT receive a span
+    # ------------------------------------------------------------------
+    if params.shading == "eq_hist":
+        shaded = tf.shade(
+            agg,
+            cmap=palette,
+            how="eq_hist",
+        )
+    else:
+        shaded = tf.shade(
+            agg,
+            cmap=palette,
+            how=params.shading,
+            span=(vmin, vmax),
+        )
+
+    pil_image: Image.Image = tf.set_background(shaded, "white").to_pil()
+
     buffer = io.BytesIO()
     pil_image.save(buffer, format="PNG")
-    return buffer.getvalue()
+    buffer.seek(0)
 
+    return buffer.getvalue()
 
 def save_png(png_bytes: bytes, output_path: Path) -> Path:
     output_path.parent.mkdir(parents=True, exist_ok=True)
