@@ -14,7 +14,7 @@ An isolated Streamlit GUI to compare high-performance spectrogram renderers on R
 ## Running the sandbox
 Use `experimental/newlook/run_experimental.txt` for a copy/paste bootstrap:
 1. Create/activate a venv.
-2. Upgrade/install the required dependencies (numpy, scipy, soundfile, matplotlib, streamlit, pillow, pyqtgraph, PyQt5, datashader, holoviews).
+2. Upgrade/install the required dependencies (numpy, scipy, soundfile, matplotlib, streamlit, pillow, pyqtgraph, PyQt6, datashader, holoviews).
 3. Run `python -m streamlit run experimental/newlook/app.py`.
 4. Open `http://localhost:8501` in your browser (HDMI on the Pi).
 

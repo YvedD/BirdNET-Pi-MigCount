@@ -11,11 +11,11 @@ source .venv/bin/activate
 
 # Install and upgrade all sandbox dependencies on every start
 pip install --upgrade pip
-pip install --upgrade numpy scipy soundfile matplotlib streamlit pillow pyqtgraph PyQt5 datashader holoviews panel
+pip install --upgrade numpy scipy soundfile matplotlib streamlit pillow pyqtgraph PyQt6 datashader holoviews
 
 # Sanity check imports
 python - <<'EOF'
-import numpy, scipy, soundfile, matplotlib, streamlit, pyqtgraph, PyQt5, datashader, holoviews  # noqa: F401
+import numpy, scipy, soundfile, matplotlib, streamlit, pyqtgraph, PyQt6, datashader, holoviews  # noqa: F401
 print("All experimental dependencies OK")
 EOF
 

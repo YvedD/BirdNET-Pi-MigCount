@@ -18,6 +18,7 @@ from experimental.newlook.config import DatashaderRenderParams, MatplotlibRender
 
 _QT_APP = None
 _HOLOVIEWS_READY = False
+_QT_BINDING = None
 
 
 class RendererBackend:
@@ -60,10 +61,24 @@ def render_matplotlib(
     return buffer.read()
 
 
-def _ensure_qt_application():
-    from PyQt5 import QtWidgets
+def _import_qt():
+    global _QT_BINDING
+    if _QT_BINDING:
+        return _QT_BINDING
+    try:
+        from PyQt5 import QtCore, QtGui, QtWidgets
 
+        _QT_BINDING = ("PyQt5", QtCore, QtGui, QtWidgets)
+    except Exception:
+        from PyQt6 import QtCore, QtGui, QtWidgets
+
+        _QT_BINDING = ("PyQt6", QtCore, QtGui, QtWidgets)
+    return _QT_BINDING
+
+
+def _ensure_qt_application():
     global _QT_APP
+    _, _, _, QtWidgets = _import_qt()
     if _QT_APP is None:
         _QT_APP = QtWidgets.QApplication.instance()
         if _QT_APP is None:
@@ -87,10 +102,10 @@ def render_pyqtgraph(
     vmin: float,
     vmax: float,
 ) -> bytes:
-    from PyQt5 import QtCore
     import pyqtgraph as pg
 
     _ensure_qt_application()
+    _, QtCore, _, _ = _import_qt()
 
     data = db_spectrogram[:, :: params.downsample]
     normalized = np.clip((data - vmin) / (vmax - vmin), 0.0, 1.0)
@@ -98,8 +113,11 @@ def render_pyqtgraph(
         normalized = np.power(normalized, params.gamma)
     lut = _lut_for_pyqtgraph(params.cmap)
     qimg = pg.makeQImage(np.flipud(normalized), levels=(0.0, 1.0), lut=lut)
-    transform_mode = QtCore.Qt.SmoothTransformation if params.interpolate else QtCore.Qt.FastTransformation
-    qimg = qimg.scaled(params.width, params.height, QtCore.Qt.IgnoreAspectRatio, transform_mode)
+    qt_transform = getattr(QtCore.Qt, "SmoothTransformation", getattr(QtCore.Qt.TransformationMode, "SmoothTransformation", None))
+    qt_fast = getattr(QtCore.Qt, "FastTransformation", getattr(QtCore.Qt.TransformationMode, "FastTransformation", None))
+    transform_mode = qt_transform if params.interpolate else qt_fast
+    qt_ignore = getattr(QtCore.Qt, "IgnoreAspectRatio", getattr(QtCore.Qt.AspectRatioMode, "IgnoreAspectRatio", None))
+    qimg = qimg.scaled(params.width, params.height, qt_ignore, transform_mode)
     buffer = QtCore.QBuffer()
     buffer.open(QtCore.QIODevice.WriteOnly)
     qimg.save(buffer, "PNG")
