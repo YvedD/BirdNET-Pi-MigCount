@@ -261,7 +261,7 @@ def main():
 
     col_preview, col_actions = st.columns([3, 1])
     col_preview.image(
-        png_bytes, caption=f"Live spectrogram preview — {renderer_choice}", width="stretch"
+        png_bytes, caption=f"Live spectrogram preview — {renderer_choice}", width=getattr(render_params, "width", None)
     )
 
     suggested_name = audio_path.with_name(audio_path.stem + "_newlook.png").name
