@@ -72,6 +72,7 @@ def render_matplotlib(
 
 
 def _import_qt():
+    _ensure_qt_offscreen()
     global _QT_BINDING
     if _QT_BINDING:
         return _QT_BINDING
@@ -98,6 +99,7 @@ def _ensure_qt_application():
 
 
 def _lut_for_pyqtgraph(cmap_name: str):
+    _ensure_qt_offscreen()
     import pyqtgraph as pg
 
     cmap = pg.colormap.get(cmap_name, source="matplotlib")
