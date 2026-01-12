@@ -15,8 +15,6 @@ import numpy as np  # noqa: E402
 import xarray as xr
 from matplotlib.ticker import MaxNLocator  # noqa: E402
 
-os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
-
 from experimental.newlook.config import DatashaderRenderParams, MatplotlibRenderParams, PyQtGraphRenderParams
 
 _QT_APP = None
@@ -83,6 +81,7 @@ def _import_qt():
 
 
 def _ensure_qt_application():
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     global _QT_APP
     _, _, _, QtWidgets = _import_qt()
     if _QT_APP is None:
