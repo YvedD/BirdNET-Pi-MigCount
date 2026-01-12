@@ -28,7 +28,10 @@ class RendererBackend:
 
 
 def _palette_from_cmap(name: str):
-    cmap = cm.get_cmap(name)
+    try:
+        cmap = cm.get_cmap(name)
+    except ValueError:
+        cmap = cm.get_cmap("viridis")
     return [matplotlib.colors.to_hex(cmap(i / 255.0)) for i in range(256)]
 
 
@@ -113,8 +116,9 @@ def render_pyqtgraph(
         normalized = np.power(normalized, params.gamma)
     lut = _lut_for_pyqtgraph(params.cmap)
     argb, _ = pg.functions.makeARGB(np.flipud(normalized), lut=lut)
-    h, w, _ = argb.shape
-    qimg = QtGui.QImage(argb.data, w, h, QtCore.QByteArray(), QtGui.QImage.Format_RGBA8888)
+    arr = np.require(argb, requirements=["C_CONTIGUOUS"])
+    h, w, _ = arr.shape
+    qimg = QtGui.QImage(arr.tobytes(), w, h, QtGui.QImage.Format_RGBA8888).copy()
     qt_transform = getattr(QtCore.Qt, "SmoothTransformation", getattr(QtCore.Qt.TransformationMode, "SmoothTransformation", None))
     qt_fast = getattr(QtCore.Qt, "FastTransformation", getattr(QtCore.Qt.TransformationMode, "FastTransformation", None))
     transform_mode = qt_transform if params.interpolate else qt_fast
