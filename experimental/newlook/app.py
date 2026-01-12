@@ -260,8 +260,9 @@ def main():
         st.caption(f"Render times (last run): {times_text}")
 
     col_preview, col_actions = st.columns([3, 1])
+    display_width: Optional[int]
     if isinstance(render_params, MatplotlibRenderParams):
-        display_width: Optional[int] = int(render_params.figsize[0] * render_params.dpi)
+        display_width = int(render_params.figsize[0] * render_params.dpi)
     elif isinstance(render_params, (PyQtGraphRenderParams, DatashaderRenderParams)):
         display_width = render_params.width
     else:
