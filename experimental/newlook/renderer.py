@@ -93,6 +93,7 @@ def _lut_for_pyqtgraph(cmap_name: str):
     import pyqtgraph as pg
 
     cmap = pg.colormap.get(cmap_name, source="matplotlib")
+    # 256-entry LUT, uint8, shape (256, 4)
     return cmap.getLookupTable(0.0, 1.0, 256)
 
 
@@ -106,27 +107,92 @@ def render_pyqtgraph(
     vmax: float,
 ) -> bytes:
     import pyqtgraph as pg
+    import numpy as np
 
     _ensure_qt_application()
     _, QtCore, QtGui, _ = _import_qt()
 
-    data = db_spectrogram[:, :: params.downsample]
-    normalized = np.clip((data - vmin) / (vmax - vmin), 0.0, 1.0)
+    # ------------------------------------------------------------
+    # 1) Downsample in tijd (zoals je al deed)
+    # ------------------------------------------------------------
+    data = db_spectrogram[:, :: params.downsample].astype(np.float32)
+
+    # ------------------------------------------------------------
+    # 2) Optionele gamma-correctie in DATA-domein
+    #    (niet normaliseren naar 0..1!)
+    # ------------------------------------------------------------
     if params.gamma != 1.0:
-        normalized = np.power(normalized, params.gamma)
+        # Eerst clamp naar dB-range, dan gamma
+        data = np.clip(data, vmin, vmax)
+        norm = (data - vmin) / (vmax - vmin)
+        norm = np.power(norm, params.gamma)
+        data = vmin + norm * (vmax - vmin)
+
+    # ------------------------------------------------------------
+    # 3) PyQtGraph verwacht oorsprong onderaan
+    # ------------------------------------------------------------
+    data = np.flipud(data)
+
+    # ------------------------------------------------------------
+    # 4) LUT + makeARGB
+    #    CRUCIAAL: levels zijn VERPLICHT bij float input
+    # ------------------------------------------------------------
     lut = _lut_for_pyqtgraph(params.cmap)
-    argb, _ = pg.functions.makeARGB(np.flipud(normalized), lut=lut)
+
+    argb, _ = pg.functions.makeARGB(
+        data,
+        lut=lut,
+        levels=(vmin, vmax),
+    )
+
+    # ------------------------------------------------------------
+    # 5) ARGB → QImage (RGBA8888)
+    # ------------------------------------------------------------
     arr = np.require(argb, requirements=["C_CONTIGUOUS"])
     h, w, _ = arr.shape
-    qimg = QtGui.QImage(arr.tobytes(), w, h, QtGui.QImage.Format_RGBA8888).copy()
-    qt_transform = getattr(QtCore.Qt, "SmoothTransformation", getattr(QtCore.Qt.TransformationMode, "SmoothTransformation", None))
-    qt_fast = getattr(QtCore.Qt, "FastTransformation", getattr(QtCore.Qt.TransformationMode, "FastTransformation", None))
+
+    qimg = QtGui.QImage(
+        arr.tobytes(),
+        w,
+        h,
+        QtGui.QImage.Format_RGBA8888,
+    ).copy()
+
+    # ------------------------------------------------------------
+    # 6) Schalen naar UI-afmetingen
+    # ------------------------------------------------------------
+    qt_transform = getattr(
+        QtCore.Qt,
+        "SmoothTransformation",
+        getattr(QtCore.Qt.TransformationMode, "SmoothTransformation", None),
+    )
+    qt_fast = getattr(
+        QtCore.Qt,
+        "FastTransformation",
+        getattr(QtCore.Qt.TransformationMode, "FastTransformation", None),
+    )
     transform_mode = qt_transform if params.interpolate else qt_fast
-    qt_ignore = getattr(QtCore.Qt, "IgnoreAspectRatio", getattr(QtCore.Qt.AspectRatioMode, "IgnoreAspectRatio", None))
-    qimg = qimg.scaled(params.width, params.height, qt_ignore, transform_mode)
+
+    qt_ignore = getattr(
+        QtCore.Qt,
+        "IgnoreAspectRatio",
+        getattr(QtCore.Qt.AspectRatioMode, "IgnoreAspectRatio", None),
+    )
+
+    qimg = qimg.scaled(
+        params.width,
+        params.height,
+        qt_ignore,
+        transform_mode,
+    )
+
+    # ------------------------------------------------------------
+    # 7) Encode naar PNG
+    # ------------------------------------------------------------
     buffer = QtCore.QBuffer()
     buffer.open(QtCore.QIODevice.WriteOnly)
     qimg.save(buffer, "PNG")
+
     return bytes(buffer.data())
 
 
