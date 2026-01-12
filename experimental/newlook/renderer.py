@@ -105,14 +105,16 @@ def render_pyqtgraph(
     import pyqtgraph as pg
 
     _ensure_qt_application()
-    _, QtCore, _, _ = _import_qt()
+    _, QtCore, QtGui, _ = _import_qt()
 
     data = db_spectrogram[:, :: params.downsample]
     normalized = np.clip((data - vmin) / (vmax - vmin), 0.0, 1.0)
     if params.gamma != 1.0:
         normalized = np.power(normalized, params.gamma)
     lut = _lut_for_pyqtgraph(params.cmap)
-    qimg = pg.makeQImage(np.flipud(normalized), levels=(0.0, 1.0), lut=lut)
+    argb, _ = pg.functions.makeARGB(np.flipud(normalized), lut=lut)
+    h, w, _ = argb.shape
+    qimg = QtGui.QImage(argb.data, w, h, QtCore.QByteArray(), QtGui.QImage.Format_RGBA8888)
     qt_transform = getattr(QtCore.Qt, "SmoothTransformation", getattr(QtCore.Qt.TransformationMode, "SmoothTransformation", None))
     qt_fast = getattr(QtCore.Qt, "FastTransformation", getattr(QtCore.Qt.TransformationMode, "FastTransformation", None))
     transform_mode = qt_transform if params.interpolate else qt_fast

@@ -7,7 +7,7 @@ WINDOW_OPTIONS = ("hann", "blackman", "hamming")
 
 MATPLOTLIB_CMAPS = ("magma", "inferno", "viridis", "cividis", "plasma", "gray_r", "hot", "jet")
 PYQTGRAPH_CMAPS = ("magma", "inferno", "viridis", "plasma", "cividis", "gray")
-DATASHADER_CMAPS = ("viridis", "plasma", "magma", "inferno", "cividis", "gray", "fire")
+DATASHADER_CMAPS = ("viridis", "plasma", "magma", "inferno", "cividis", "gray")
 DATASHADER_SHADINGS = ("linear", "eq_hist", "log", "cbrt")
 
 RENDERER_CHOICES = (
