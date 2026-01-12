@@ -158,10 +158,10 @@ def render_datashader(
     )
     agg = canvas.raster(data_array)
     palette = _palette_from_cmap(params.cmap)
-    if params.shading == "eq_hist":
-        shaded = tf.shade(agg, cmap=palette, how=params.shading)
-    else:
-        shaded = tf.shade(agg, cmap=palette, how=params.shading, span=(vmin, vmax))
+    shade_kwargs = {"cmap": palette, "how": params.shading}
+    if params.shading != "eq_hist":
+        shade_kwargs["span"] = (vmin, vmax)
+    shaded = tf.shade(agg, **shade_kwargs)
     pil_image = tf.set_background(shaded, "white").to_pil()
     buffer = io.BytesIO()
     pil_image.save(buffer, format="PNG")
