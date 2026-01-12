@@ -22,8 +22,8 @@ _HOLOVIEWS_READY = False
 _QT_BINDING = None
 
 
-def _ensure_qt_offscreen():
-    """Set Qt to offscreen mode when a GUI display is unavailable."""
+def _set_default_qt_offscreen():
+    """Set a default offscreen Qt platform when a GUI display is unavailable."""
     if "QT_QPA_PLATFORM" not in os.environ:
         os.environ["QT_QPA_PLATFORM"] = "offscreen"
 
@@ -72,7 +72,7 @@ def render_matplotlib(
 
 
 def _import_qt():
-    _ensure_qt_offscreen()
+    _set_default_qt_offscreen()
     global _QT_BINDING
     if _QT_BINDING:
         return _QT_BINDING
@@ -99,7 +99,6 @@ def _ensure_qt_application():
 
 
 def _lut_for_pyqtgraph(cmap_name: str):
-    _ensure_qt_offscreen()
     import pyqtgraph as pg
 
     cmap = pg.colormap.get(cmap_name, source="matplotlib")
@@ -115,7 +114,7 @@ def render_pyqtgraph(
     vmin: float,
     vmax: float,
 ) -> bytes:
-    _ensure_qt_offscreen()
+    _set_default_qt_offscreen()
     import pyqtgraph as pg
 
     _ensure_qt_application()
