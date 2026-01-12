@@ -81,7 +81,9 @@ def _import_qt():
 
 
 def _ensure_qt_application():
-    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    """Ensure a Qt application exists; default to offscreen for headless rendering."""
+    if "QT_QPA_PLATFORM" not in os.environ:
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
     global _QT_APP
     _, _, _, QtWidgets = _import_qt()
     if _QT_APP is None:
