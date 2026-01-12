@@ -6,8 +6,8 @@ NFFT_OPTIONS = (2048, 4096, 8192)
 WINDOW_OPTIONS = ("hann", "blackman", "hamming")
 
 MATPLOTLIB_CMAPS = ("magma", "inferno", "viridis", "cividis", "plasma", "gray_r", "hot", "jet")
-PYQTGRAPH_CMAPS = ("magma", "inferno", "viridis", "plasma", "cividis", "gray")
-DATASHADER_CMAPS = ("viridis", "plasma", "magma", "inferno", "cividis", "gray")
+PYQTGRAPH_CMAPS = ("magma", "inferno", "viridis", "plasma", "cividis", "gray_r")
+DATASHADER_CMAPS = ("viridis", "plasma", "magma", "inferno", "cividis", "gray_r")
 DATASHADER_SHADINGS = ("linear", "eq_hist", "log", "cbrt")
 
 RENDERER_CHOICES = (
