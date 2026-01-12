@@ -72,7 +72,6 @@ def render_matplotlib(
 
 
 def _import_qt():
-    _set_default_qt_offscreen()
     global _QT_BINDING
     if _QT_BINDING:
         return _QT_BINDING
@@ -89,6 +88,7 @@ def _import_qt():
 
 def _ensure_qt_application():
     """Ensure a Qt application exists; default to offscreen for headless rendering."""
+    _set_default_qt_offscreen()
     global _QT_APP
     _, _, _, QtWidgets = _import_qt()
     if _QT_APP is None:
