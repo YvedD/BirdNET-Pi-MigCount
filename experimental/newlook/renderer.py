@@ -22,6 +22,11 @@ _HOLOVIEWS_READY = False
 _QT_BINDING = None
 
 
+def _ensure_qt_offscreen():
+    if "QT_QPA_PLATFORM" not in os.environ:
+        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+
+
 class RendererBackend:
     MATPLOTLIB = "matplotlib"
     PYQTGRAPH = "pyqtgraph"
@@ -82,8 +87,7 @@ def _import_qt():
 
 def _ensure_qt_application():
     """Ensure a Qt application exists; default to offscreen for headless rendering."""
-    if "QT_QPA_PLATFORM" not in os.environ:
-        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+    _ensure_qt_offscreen()
     global _QT_APP
     _, _, _, QtWidgets = _import_qt()
     if _QT_APP is None:
@@ -109,8 +113,7 @@ def render_pyqtgraph(
     vmin: float,
     vmax: float,
 ) -> bytes:
-    if "QT_QPA_PLATFORM" not in os.environ:
-        os.environ["QT_QPA_PLATFORM"] = "offscreen"
+    _ensure_qt_offscreen()
     import pyqtgraph as pg
 
     _ensure_qt_application()
