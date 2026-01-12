@@ -262,8 +262,10 @@ def main():
     col_preview, col_actions = st.columns([3, 1])
     if isinstance(render_params, MatplotlibRenderParams):
         display_width: Optional[int] = int(render_params.figsize[0] * render_params.dpi)
+    elif isinstance(render_params, (PyQtGraphRenderParams, DatashaderRenderParams)):
+        display_width = render_params.width
     else:
-        display_width = getattr(render_params, "width", None)
+        display_width = None
     col_preview.image(
         png_bytes, caption=f"Live spectrogram preview — {renderer_choice}", width=display_width
     )
