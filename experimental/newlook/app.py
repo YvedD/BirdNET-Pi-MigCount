@@ -260,8 +260,12 @@ def main():
         st.caption(f"Render times (last run): {times_text}")
 
     col_preview, col_actions = st.columns([3, 1])
+    if isinstance(render_params, MatplotlibRenderParams):
+        display_width: Optional[int] = int(render_params.figsize[0] * render_params.dpi)
+    else:
+        display_width = getattr(render_params, "width", None)
     col_preview.image(
-        png_bytes, caption=f"Live spectrogram preview — {renderer_choice}", width=getattr(render_params, "width", None)
+        png_bytes, caption=f"Live spectrogram preview — {renderer_choice}", width=display_width
     )
 
     suggested_name = audio_path.with_name(audio_path.stem + "_newlook.png").name
