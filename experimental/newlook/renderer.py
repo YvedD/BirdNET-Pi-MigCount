@@ -1,4 +1,5 @@
 import io
+import os
 from pathlib import Path
 from typing import Tuple
 
@@ -13,6 +14,8 @@ import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np  # noqa: E402
 import xarray as xr
 from matplotlib.ticker import MaxNLocator  # noqa: E402
+
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from experimental.newlook.config import DatashaderRenderParams, MatplotlibRenderParams, PyQtGraphRenderParams
 
