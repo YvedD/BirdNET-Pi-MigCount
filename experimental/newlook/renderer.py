@@ -75,25 +75,32 @@ def _import_qt():
     global _QT_BINDING
     if _QT_BINDING:
         return _QT_BINDING
+
     try:
         from PyQt5 import QtCore, QtGui, QtWidgets
-
         _QT_BINDING = ("PyQt5", QtCore, QtGui, QtWidgets)
     except Exception:
         from PyQt6 import QtCore, QtGui, QtWidgets
-
         _QT_BINDING = ("PyQt6", QtCore, QtGui, QtWidgets)
+
     return _QT_BINDING
 
 
 def _ensure_qt_application():
     """Ensure a Qt application exists; default to offscreen for headless rendering."""
+    import os
+
+    # ⚠️ MOET vóór QApplication
+    os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+
     global _QT_APP
     _, _, _, QtWidgets = _import_qt()
+
     if _QT_APP is None:
         _QT_APP = QtWidgets.QApplication.instance()
         if _QT_APP is None:
             _QT_APP = QtWidgets.QApplication([])
+
     return _QT_APP
 
 
@@ -101,7 +108,6 @@ def _lut_for_pyqtgraph(cmap_name: str):
     import pyqtgraph as pg
 
     cmap = pg.colormap.get(cmap_name, source="matplotlib")
-    # 256-entry LUT, uint8, shape (256, 4)
     return cmap.getLookupTable(0.0, 1.0, 256)
 
 
@@ -114,7 +120,6 @@ def render_pyqtgraph(
     vmin: float,
     vmax: float,
 ) -> bytes:
-    _set_default_qt_offscreen()
     import pyqtgraph as pg
     import numpy as np
 
@@ -122,29 +127,26 @@ def render_pyqtgraph(
     _, QtCore, QtGui, _ = _import_qt()
 
     # ------------------------------------------------------------
-    # 1) Downsample in tijd (zoals je al deed)
+    # 1) Downsample
     # ------------------------------------------------------------
     data = db_spectrogram[:, :: params.downsample].astype(np.float32)
 
     # ------------------------------------------------------------
-    # 2) Optionele gamma-correctie in DATA-domein
-    #    (niet normaliseren naar 0..1!)
+    # 2) Gamma correctie (in dB-domein)
     # ------------------------------------------------------------
     if params.gamma != 1.0:
-        # Eerst clamp naar dB-range, dan gamma
         data = np.clip(data, vmin, vmax)
         norm = (data - vmin) / (vmax - vmin)
         norm = np.power(norm, params.gamma)
         data = vmin + norm * (vmax - vmin)
 
     # ------------------------------------------------------------
-    # 3) PyQtGraph verwacht oorsprong onderaan
+    # 3) Origin onderaan
     # ------------------------------------------------------------
     data = np.flipud(data)
 
     # ------------------------------------------------------------
-    # 4) LUT + makeARGB
-    #    CRUCIAAL: levels zijn VERPLICHT bij float input
+    # 4) PyQtGraph ARGB
     # ------------------------------------------------------------
     lut = _lut_for_pyqtgraph(params.cmap)
 
@@ -155,7 +157,7 @@ def render_pyqtgraph(
     )
 
     # ------------------------------------------------------------
-    # 5) ARGB → QImage (RGBA8888)
+    # 5) QImage — ALTIJD ARGB32
     # ------------------------------------------------------------
     arr = np.require(argb, requirements=["C_CONTIGUOUS"])
     h, w, _ = arr.shape
@@ -164,13 +166,13 @@ def render_pyqtgraph(
         arr.tobytes(),
         w,
         h,
-        QtGui.QImage.Format_RGBA8888,
+        QtGui.QImage.Format_ARGB32,
     ).copy()
 
     # ------------------------------------------------------------
-    # 6) Schalen naar UI-afmetingen
+    # 6) Schalen
     # ------------------------------------------------------------
-    qt_transform = getattr(
+    qt_smooth = getattr(
         QtCore.Qt,
         "SmoothTransformation",
         getattr(QtCore.Qt.TransformationMode, "SmoothTransformation", None),
@@ -180,7 +182,8 @@ def render_pyqtgraph(
         "FastTransformation",
         getattr(QtCore.Qt.TransformationMode, "FastTransformation", None),
     )
-    transform_mode = qt_transform if params.interpolate else qt_fast
+
+    transform_mode = qt_smooth if params.interpolate else qt_fast
 
     qt_ignore = getattr(
         QtCore.Qt,
@@ -196,7 +199,7 @@ def render_pyqtgraph(
     )
 
     # ------------------------------------------------------------
-    # 7) Encode naar PNG
+    # 7) PNG encode
     # ------------------------------------------------------------
     buffer = QtCore.QBuffer()
     buffer.open(QtCore.QIODevice.WriteOnly)
