@@ -821,12 +821,14 @@ canvas {
 
       const framerateSlider = document.getElementById('framerate-slider');
       const framerateValue = document.getElementById('framerate-value');
-      framerateSlider.addEventListener('input', function() {
-        const value = parseInt(this.value);
-        framerateValue.textContent = value + 'ms';
-        VerticalSpectrogram.setRedrawInterval(value);
-        saveSettings();
-      });
+      if (framerateSlider && framerateValue) {
+        framerateSlider.addEventListener('input', function() {
+          const value = parseInt(this.value);
+          framerateValue.textContent = value + 'ms';
+          VerticalSpectrogram.setRedrawInterval(value);
+          saveSettings();
+        });
+      }
 
       const lowcutCheckbox = document.getElementById('lowcut-checkbox');
       const lowcutControls = document.getElementById('lowcut-controls');
