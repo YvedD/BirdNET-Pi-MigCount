@@ -1,7 +1,6 @@
 import os
 import unittest
 from unittest.mock import patch
-from io import StringIO
 
 from scripts.utils.analysis import run_analysis, _get_numeric_setting
 from scripts.utils.classes import ParseFileName
