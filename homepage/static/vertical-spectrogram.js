@@ -852,6 +852,22 @@
     CONFIG.LABEL_ROTATION = normalizeRotation(rotationRadians);
   }
 
+  /**
+   * Set the redraw interval (frame-rate) for the spectrogram
+   * @param {number} intervalMs - Redraw interval in milliseconds (lower = faster, higher = slower)
+   * @returns {void}
+   * @note UI slider is limited to 500ms for practical use, but function accepts up to 1000ms
+   * for programmatic control or future extensions
+   */
+  function setRedrawInterval(intervalMs) {
+    if (!Number.isFinite(intervalMs) || intervalMs < 10 || intervalMs > 1000) {
+      console.warn('Invalid redraw interval value:', intervalMs);
+      return;
+    }
+    CONFIG.REDRAW_INTERVAL_MS = intervalMs;
+    console.log('Redraw interval set to:', intervalMs, 'ms');
+  }
+
   // =================== Public API ===================
   
   window.VerticalSpectrogram = {
@@ -862,6 +878,7 @@
     setLowCutFilter,
     setLowCutFrequency,
     setLabelRotation,
+    setRedrawInterval,
     captureScreenshot,
     CONFIG,
     COLOR_SCHEMES

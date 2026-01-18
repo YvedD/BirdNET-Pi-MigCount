@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Frame-Rate Control Test</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .control-group {
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .control-group-title {
+      font-size: 14px;
+      text-transform: uppercase;
+      color: #666;
+      margin-bottom: 15px;
+      font-weight: 600;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: 500;
+    }
+    input[type="range"] {
+      width: 100%;
+      margin: 10px 0;
+    }
+    .value-display {
+      display: inline-block;
+      min-width: 60px;
+      text-align: right;
+      font-weight: bold;
+      color: #4CAF50;
+      font-size: 16px;
+    }
+    .info-box {
+      background: #e3f2fd;
+      border-left: 4px solid #2196F3;
+      padding: 15px;
+      margin-top: 20px;
+      border-radius: 4px;
+    }
+    .info-box h3 {
+      margin-top: 0;
+      color: #1976D2;
+    }
+    .visualization {
+      margin-top: 20px;
+      padding: 20px;
+      background: #fff;
+      border-radius: 8px;
+      text-align: center;
+    }
+    .animation-box {
+      width: 100%;
+      height: 100px;
+      background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+      border-radius: 8px;
+      position: relative;
+      overflow: hidden;
+    }
+    .moving-dot {
+      width: 20px;
+      height: 20px;
+      background: white;
+      border-radius: 50%;
+      position: absolute;
+      top: 40px;
+      box-shadow: 0 0 10px rgba(255,255,255,0.5);
+    }
+  </style>
+</head>
+<body>
+  <h1>Frame-Rate Control Test</h1>
+  
+  <div class="control-group">
+    <div class="control-group-title">Display Settings</div>
+    <div>
+      <label>Frame-Rate:</label>
+      <input type="range" id="framerate-slider" min="10" max="500" value="100" step="10" />
+      <span class="value-display" id="framerate-value">100ms</span>
+    </div>
+  </div>
+
+  <div class="info-box">
+    <h3>How it works:</h3>
+    <p>The slider controls the frame-rate of the spectrogram:</p>
+    <ul>
+      <li><strong>Lower values (10-50ms)</strong>: Faster refresh rate (smoother animation, higher CPU usage)</li>
+      <li><strong>Medium values (100-150ms)</strong>: Balanced refresh rate (good for most systems)</li>
+      <li><strong>Higher values (200-500ms)</strong>: Slower refresh rate (less smooth, lower CPU usage)</li>
+    </ul>
+    <p><strong>Current FPS:</strong> <span id="fps-display">10</span> frames per second</p>
+  </div>
+
+  <div class="visualization">
+    <h3>Visual Demo</h3>
+    <p>This animation updates at the selected frame-rate:</p>
+    <div class="animation-box">
+      <div class="moving-dot" id="demo-dot"></div>
+    </div>
+  </div>
+
+  <script>
+    // Simulate the frame-rate control
+    let redrawInterval = 100;
+    let lastUpdateTime = 0;
+    let position = 0;
+
+    const slider = document.getElementById('framerate-slider');
+    const valueDisplay = document.getElementById('framerate-value');
+    const fpsDisplay = document.getElementById('fps-display');
+    const demoDot = document.getElementById('demo-dot');
+
+    // Update slider display and FPS
+    function updateDisplay() {
+      const value = parseInt(slider.value);
+      valueDisplay.textContent = value + 'ms';
+      const fps = Math.round(1000 / value);
+      fpsDisplay.textContent = fps;
+      redrawInterval = value;
+    }
+
+    // Animation loop
+    function animate() {
+      const now = performance.now();
+      
+      if (now - lastUpdateTime >= redrawInterval) {
+        position = (position + 2) % 100;
+        demoDot.style.left = position + '%';
+        lastUpdateTime = now;
+      }
+      
+      requestAnimationFrame(animate);
+    }
+
+    // Event listener
+    slider.addEventListener('input', updateDisplay);
+
+    // Initialize
+    updateDisplay();
+    animate();
+
+    console.log('Frame-rate control test loaded successfully!');
+    console.log('Slider range: 10-500ms');
+    console.log('Default value: 100ms (10 FPS)');
+  </script>
+</body>
+</html>
