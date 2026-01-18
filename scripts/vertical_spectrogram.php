@@ -485,6 +485,11 @@ canvas {
           <option value="greenwhite">Green-White</option>
         </select>
       </div>
+      <div style="margin-top: 8px;">
+        <label>Frame-Rate:</label>
+        <input type="range" id="framerate-slider" min="10" max="500" value="100" step="10" />
+        <span class="value-display" id="framerate-value">100ms</span>
+      </div>
     </div>
     <div class="control-group">
       <div class="control-group-title">Canvas Size</div>
@@ -681,7 +686,8 @@ canvas {
           minConfidence: document.getElementById('confidence-slider')?.value,
           lowCutEnabled: document.getElementById('lowcut-checkbox')?.checked,
           lowCutFrequency: document.getElementById('lowcut-slider')?.value,
-          labelRotation: labelRotation
+          labelRotation: labelRotation,
+          redrawInterval: document.getElementById('framerate-slider')?.value
         };
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
       } catch (error) {
@@ -750,6 +756,17 @@ canvas {
             labelRotation = VerticalSpectrogram.CONFIG.LABEL_ROTATION;
           }
         }
+
+        if (settings.redrawInterval !== undefined) {
+          const framerateSlider = document.getElementById('framerate-slider');
+          const framerateValue = document.getElementById('framerate-value');
+          if (framerateSlider && framerateValue) {
+            framerateSlider.value = settings.redrawInterval;
+            framerateValue.textContent = settings.redrawInterval + 'ms';
+            VerticalSpectrogram.setRedrawInterval(parseInt(settings.redrawInterval));
+          }
+        }
+
         updateRotationValue();
       } catch (error) {
         console.error('Failed to load settings:', error);
@@ -799,6 +816,15 @@ canvas {
       const colorSchemeSelect = document.getElementById('color-scheme-select');
       colorSchemeSelect.addEventListener('change', function() {
         VerticalSpectrogram.setColorScheme(this.value);
+        saveSettings();
+      });
+
+      const framerateSlider = document.getElementById('framerate-slider');
+      const framerateValue = document.getElementById('framerate-value');
+      framerateSlider.addEventListener('input', function() {
+        const value = parseInt(this.value);
+        framerateValue.textContent = value + 'ms';
+        VerticalSpectrogram.setRedrawInterval(value);
         saveSettings();
       });
 
