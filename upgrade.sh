@@ -10,7 +10,7 @@ echo "=========================================="
 echo ""
 
 # Check of we niet als root draaien
-if [ "$EUID" == 0 ]; then
+if [ "$EUID" = 0 ]; then
   echo "❌ Fout: Voer dit script uit als normale gebruiker, niet als root."
   echo "   Gebruik: ./upgrade.sh"
   exit 1
@@ -22,7 +22,6 @@ if [ -n "${BIRDNET_USER}" ]; then
   HOME=/home/${BIRDNET_USER}
 else
   USER=$(whoami)
-  HOME=$HOME
 fi
 
 # Bepaal de BirdNET-Pi directory
