@@ -18,3 +18,7 @@ matplotlib
 pillow
 pyarrow==20.0.0
 soundfile
+datashader
+holoviews
+xarray
+pyqtgraph
