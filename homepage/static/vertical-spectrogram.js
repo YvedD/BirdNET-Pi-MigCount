@@ -18,7 +18,7 @@
   // =================== Configuration ===================
   const CONFIG = {
     // Fixed redraw interval in milliseconds (lightweight live indicator)
-    REDRAW_INTERVAL_MS: 100,
+    REDRAW_INTERVAL_MS: 33,
     
     // Detection label configuration
     DETECTION_CHECK_INTERVAL_MS: 1000,
