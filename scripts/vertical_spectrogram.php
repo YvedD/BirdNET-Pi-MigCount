@@ -763,7 +763,13 @@ canvas {
           if (framerateSlider && framerateValue) {
             framerateSlider.value = settings.redrawInterval;
             framerateValue.textContent = settings.redrawInterval + 'ms';
-            VerticalSpectrogram.setRedrawInterval(parseInt(settings.redrawInterval));
+            try {
+              if (typeof VerticalSpectrogram.setRedrawInterval === 'function') {
+                VerticalSpectrogram.setRedrawInterval(parseInt(settings.redrawInterval));
+              }
+            } catch (error) {
+              console.error('Failed to set redraw interval:', error);
+            }
           }
         }
 
@@ -825,7 +831,13 @@ canvas {
         framerateSlider.addEventListener('input', function() {
           const value = parseInt(this.value);
           framerateValue.textContent = value + 'ms';
-          VerticalSpectrogram.setRedrawInterval(value);
+          try {
+            if (typeof VerticalSpectrogram.setRedrawInterval === 'function') {
+              VerticalSpectrogram.setRedrawInterval(value);
+            }
+          } catch (error) {
+            console.error('Failed to set redraw interval:', error);
+          }
           saveSettings();
         });
       }
