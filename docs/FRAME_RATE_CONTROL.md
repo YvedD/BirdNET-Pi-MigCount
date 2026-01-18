@@ -54,7 +54,7 @@ This file contains the HTML interface and JavaScript logic for the user interfac
   - Step size: 10ms
 
 #### Event Handler
-- **Location**: Lines 807-813
+- **Location**: Lines 824-830
 - **Function**: `setupControls()` contains the event listener
 - **Operation**:
   1. Listens for `input` events on the slider

@@ -59,7 +59,7 @@ Dit bestand bevat de HTML-interface en JavaScript-logica voor de gebruikersinter
   - Stap grootte: 10ms
 
 #### Event Handler
-- **Locatie**: Regels 807-813
+- **Locatie**: Regels 824-830
 - **Functie**: `setupControls()` bevat de event listener
 - **Werking**:
   1. Luistert naar `input` events op de slider
