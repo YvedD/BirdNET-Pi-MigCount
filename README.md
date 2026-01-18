@@ -116,6 +116,27 @@ git fetch origin main
 git status
 ```
 
+### Upgrading Dependencies
+
+If you need to upgrade Python dependencies (for example, to add support for experimental spectrogram features), use the upgrade script:
+```bash
+cd ~/BirdNET-Pi
+./upgrade.sh
+```
+
+This script will:
+- Install missing dependencies for audio analysis (scipy)
+- Install dependencies for experimental spectrogram features (datashader, holoviews, xarray, pyqtgraph)
+- Work with both virtual environment and system-wide Python installations
+- Provide clear feedback on what was installed
+
+After running the upgrade script, restart BirdNET-Pi services:
+```bash
+sudo systemctl restart birdnet_analysis.service
+# Or reboot the entire system:
+sudo reboot
+```
+
 ## Backup and Restore
 Use the web interface and go to "Tools" > "System Controls" > "Backup" or "Restore". Backup/Restore is primary meant for migrating your data for one system to another. Since the time required to create or restore a backup depends on the size of the data set and the speed of the storage, this could take quite a while.
 
