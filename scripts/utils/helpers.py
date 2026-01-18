@@ -36,8 +36,10 @@ class PHPConfigParser(ConfigParser):
         value = super().get(section, option, raw=raw, vars=vars, fallback=fallback)
         if raw:
             return value
-        else:
+        elif isinstance(value, str):
             return value.strip('"')
+        else:
+            return value
 
 
 def _load_settings(settings_path='/etc/birdnet/birdnet.conf', force_reload=False):
