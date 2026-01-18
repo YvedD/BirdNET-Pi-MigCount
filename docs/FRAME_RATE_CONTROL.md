@@ -120,6 +120,17 @@ VerticalSpectrogram.setRedrawInterval(200);
 | Debugging/Analysis | 200-500ms | Slow refresh for detailed observation |
 | Demo/Presentation | 50-75ms | Smooth, professional display |
 
+## Technical Notes
+
+### Validation Limits
+The `setRedrawInterval()` function enforces the following limits:
+- **Minimum**: 10ms (prevents browser overload)
+- **Maximum (function)**: 1000ms (allows programmatic control and future extensions)
+- **Maximum (UI)**: 500ms (practical limit for slider control)
+- **Default**: 100ms (balanced performance)
+
+**Design Decision**: The JavaScript function accepts values up to 1000ms to provide flexibility for programmatic adjustments or future features, while the UI slider is limited to 500ms for practical everyday use. This allows developers to set slower refresh rates programmatically if needed (e.g., for power-saving modes or special debugging scenarios) without exposing extreme values in the standard UI.
+
 ## Summary
 
 The frame-rate control feature provides users with full control over the vertical spectrogram's refresh rate:

@@ -191,8 +191,11 @@ VerticalSpectrogram.setRedrawInterval(200);
 
 ### Veiligheidslimieten
 - **Minimum**: 10ms om te voorkomen dat de browser overbelast wordt
-- **Maximum**: 1000ms om te voorkomen dat het spectrogram "bevriest"
+- **Maximum (functie)**: 1000ms voor programmatische controle en toekomstige uitbreidingen
+- **Maximum (UI)**: 500ms voor praktisch gebruik via de slider
 - **Default**: 100ms voor goede balans tussen prestaties en vloeiendheid
+
+**Opmerking**: De JavaScript functie accepteert waarden tot 1000ms om flexibiliteit te bieden voor programmatische aanpassingen of toekomstige features, maar de UI slider is beperkt tot 500ms voor praktisch dagelijks gebruik.
 
 ### Browser Compatibiliteit
 - Werkt in alle moderne browsers (Chrome, Firefox, Safari, Edge)
