@@ -687,7 +687,7 @@ canvas {
           lowCutEnabled: document.getElementById('lowcut-checkbox')?.checked,
           lowCutFrequency: document.getElementById('lowcut-slider')?.value,
           labelRotation: labelRotation,
-          redrawInterval: parseInt(document.getElementById('framerate-slider')?.value)
+          redrawInterval: document.getElementById('framerate-slider')?.value
         };
         localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
       } catch (error) {

@@ -226,7 +226,7 @@ De frame-rate controle functie biedt gebruikers volledige controle over de verve
 1. **Configuratie**: `REDRAW_INTERVAL_MS` in `vertical-spectrogram.js` (regel 21)
 2. **Functie**: `setRedrawInterval()` in `vertical-spectrogram.js` (regels 855-866)
 3. **UI Control**: Slider in `vertical_spectrogram.php` (regels 488-492)
-4. **Event Handler**: In `setupControls()` functie (regels 807-813)
+4. **Event Handler**: In `setupControls()` functie (regels 824-830)
 5. **Persistence**: Via localStorage (save/load functions)
 
 De implementatie is eenvoudig, veilig, en gebruiksvriendelijk, met directe feedback en permanente opslag van voorkeuren.

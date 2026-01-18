@@ -127,7 +127,7 @@ The frame-rate control feature provides users with full control over the vertica
 1. **Configuration**: `REDRAW_INTERVAL_MS` in `vertical-spectrogram.js` (line 21)
 2. **Function**: `setRedrawInterval()` in `vertical-spectrogram.js` (lines 855-866)
 3. **UI Control**: Slider in `vertical_spectrogram.php` (lines 488-492)
-4. **Event Handler**: In `setupControls()` function (lines 807-813)
+4. **Event Handler**: In `setupControls()` function (lines 824-830)
 5. **Persistence**: Via localStorage (save/load functions)
 
 The implementation is simple, safe, and user-friendly, with immediate feedback and permanent storage of preferences.
